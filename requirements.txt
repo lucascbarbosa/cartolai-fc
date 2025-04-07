@@ -1,4 +1,6 @@
+fastparquet==2024.11.0
+ipython==9.0.2
 numpy==2.2.4
 pandas==2.2.3
 requests==2.32.3
-ipython==9.0.2
+tqdm==4.67.1
