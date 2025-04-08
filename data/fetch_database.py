@@ -100,4 +100,4 @@ database = rodadas_df.merge(
 )
 
 # Exportar
-database.to_parquet("data/dados_rodadas.parquet")
+database.to_parquet("data/dados_bronze.parquet")
