@@ -5,38 +5,16 @@ import requests
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
 
+
+# Parse args
 parser = argparse.ArgumentParser()
 parser.add_argument('--rodada', type=int, required=True, help='Rodada atual')
 args = parser.parse_args()
-RODADA_ATUAL = args.rodada
-
-# URLs e headers
-mercado_url = "https://api.cartola.globo.com/atletas/mercado"
-gatomestre_url = "https://api.cartola.globo.com/auth/gatomestre/atletas"
-partidas_url = "https://api.cartola.globo.com/partidas/{rodada}"
-pontuacao_url = "https://api.cartola.globo.com/auth/mercado/atleta/{atleta_id}/pontuacao"
-auth_header = {
- "Authorization": "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg5NWIwYmIwLTI4ODMtNDE3MC1hMDY2LTZkMDIwZjkzNGRlMyIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiY2FydG9sYUBhcHBzLmdsb2JvaWQiXSwiYXpwIjoiY2FydG9sYUBhcHBzLmdsb2JvaWQiLCJlbWFpbCI6Imx1Y2FzLmJhcmJvc2EuMDg5OUBnbWFpbC5jb20iLCJleHAiOjE3NDQyMzI2OTgsImZlZGVyYXRlZF9zaWQiOiIxZDljZTJhN2Y4OTkwZWU4MGNmNDY3Yzc5MmQ0YzU1YzI1NDZmNmM1ZjM4NDUzMTMzNWE2OTY1NzQzMDZjNzAzNzRhNmUzODY5NTk0Njc4Mzg1YTZkMzY2NDMzNmE2NDRmNzY0NTY5NzU2NDM0NGU2OTU1MzI3MDc1MzkzMjRjMzM0ODMzNzE3ODU5Nzc3Mjc2NmM0MzZlNTI2NTZiNzA1NjM5NTk2ZjZlNGUzOTczNjg2MzU3NzQ0NzZhNmY1NzMzNjgzMjMwNjQ3OTY3M2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZnNfaWQiOiJUb2xfOEUxM1ppZXQwbHA3Sm44aVlGeDhabTZkM2pkT3ZFaXVkNE5pVTJwdTkyTDNIM3F4WXdydmxDblJla3BWOVlvbk45c2hjV3RHam9XM2gyMGR5Zz09IiwiZ2xiaWQiOiIxZDljZTJhN2Y4OTkwZWU4MGNmNDY3Yzc5MmQ0YzU1YzI1NDZmNmM1ZjM4NDUzMTMzNWE2OTY1NzQzMDZjNzAzNzRhNmUzODY5NTk0Njc4Mzg1YTZkMzY2NDMzNmE2NDRmNzY0NTY5NzU2NDM0NGU2OTU1MzI3MDc1MzkzMjRjMzM0ODMzNzE3ODU5Nzc3Mjc2NmM0MzZlNTI2NTZiNzA1NjM5NTk2ZjZlNGUzOTczNjg2MzU3NzQ0NzZhNmY1NzMzNjgzMjMwNjQ3OTY3M2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZ2xvYm9faWQiOiIwMjBjZWI5Yy04ZGE5LTQwN2QtOGMzZi05MzFiNDUyYmNmMTMiLCJpYXQiOjE3NDQwNTg2NDEsImlzcyI6Imh0dHBzOi8vZ29pZGMuZ2xvYm8uY29tL2F1dGgvcmVhbG1zL2dsb2JvLmNvbSIsImp0aSI6IjBjOTBhOTBjLWUwMWEtNDJlZi1hODY0LTQ1ZGRjNTY1N2RhMCIsInByZWZlcnJlZF91c2VybmFtZSI6Imx1Y2FzLmJhci4yMDE0LjkiLCJzY3AiOlsib3BlbmlkIiwicHJvZmlsZSJdLCJzZXNzaW9uX3N0YXRlIjoiNDJlMGE4YzAtMDlhZi00ZGE0LTllYzQtOTAyZGY1YzIxMWRmIiwic2lkIjoiNDJlMGE4YzAtMDlhZi00ZGE0LTllYzQtOTAyZGY1YzIxMWRmIiwic3ViIjoiMDIwY2ViOWMtOGRhOS00MDdkLThjM2YtOTMxYjQ1MmJjZjEzIiwidHlwIjoiQmVhcmVyIn0.p02dtESQuAL0OH101YPVFZn__Z__BlNACRq4R12rp-EZPZjt1yEELFzUhwAoe0UGq5VrggYlfKqG-AXHuTroH16llLNT76bEVTOtkdSIzJcAlx2VzoGXrt569g0lrN_lao9ip1_Su7eQuL3xr93msuIkDOiXofsN1mQ16kZfrB9nvQe70hX4KGqPSEyijxpSswlJ9g55k4vTsKNCLqJJadUs3hF0gGvEEc08Km3v9qZyLPDXNJSz7TL7mxZl44-vJ-fhCSXMwx31hcKB-lrKUMn0o51H4sLmJN-pWgDGdDw2D5NcPgqsxnhD5gllp5lHa9uXRX2YHssNvm182nrYbg" 
-}
+RODADA = args.rodada
 
 
-# Requisições iniciais
-mercado_data = requests.get(mercado_url).json()
-gatomestre_data = requests.get(gatomestre_url, headers=auth_header).json()
-
-# Dataframes fixos
-clubes_df = pd.DataFrame(
-    mercado_data['clubes']).T[['id', 'nome_fantasia']].rename(
-        columns={'nome_fantasia': 'clube'})
-posicoes_df = pd.DataFrame(
-    mercado_data['posicoes']).T[['id', 'nome']].rename(
-        columns={'nome': 'posicao'})
-status_df = pd.DataFrame(
-mercado_data['status']).T[['id', 'nome']].rename(columns={'nome': 'status'})
-atletas_df = pd.DataFrame(mercado_data['atletas'])
-gatomestre_df = pd.DataFrame(gatomestre_data).T
-
-
+#############
+# Functiuns #
 def _fetch_rodada(rodada_id):
     """Processa base de rodada."""
     try:
@@ -85,10 +63,36 @@ def _fetch_pontuacao(atleta_id):
         return pd.DataFrame()
 
 
+# URLs e headers
+mercado_url = "https://api.cartola.globo.com/atletas/mercado"
+gatomestre_url = "https://api.cartola.globo.com/auth/gatomestre/atletas"
+partidas_url = "https://api.cartola.globo.com/partidas/{rodada}"
+pontuacao_url = "https://api.cartola.globo.com/auth/mercado/atleta/{atleta_id}/pontuacao"
+auth_header = {
+ "Authorization": "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg5NWIwYmIwLTI4ODMtNDE3MC1hMDY2LTZkMDIwZjkzNGRlMyIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiY2FydG9sYUBhcHBzLmdsb2JvaWQiXSwiYXpwIjoiY2FydG9sYUBhcHBzLmdsb2JvaWQiLCJlbWFpbCI6Imx1Y2FzLmJhcmJvc2EuMDg5OUBnbWFpbC5jb20iLCJleHAiOjE3NDQyMzI2OTgsImZlZGVyYXRlZF9zaWQiOiIxZDljZTJhN2Y4OTkwZWU4MGNmNDY3Yzc5MmQ0YzU1YzI1NDZmNmM1ZjM4NDUzMTMzNWE2OTY1NzQzMDZjNzAzNzRhNmUzODY5NTk0Njc4Mzg1YTZkMzY2NDMzNmE2NDRmNzY0NTY5NzU2NDM0NGU2OTU1MzI3MDc1MzkzMjRjMzM0ODMzNzE3ODU5Nzc3Mjc2NmM0MzZlNTI2NTZiNzA1NjM5NTk2ZjZlNGUzOTczNjg2MzU3NzQ0NzZhNmY1NzMzNjgzMjMwNjQ3OTY3M2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZnNfaWQiOiJUb2xfOEUxM1ppZXQwbHA3Sm44aVlGeDhabTZkM2pkT3ZFaXVkNE5pVTJwdTkyTDNIM3F4WXdydmxDblJla3BWOVlvbk45c2hjV3RHam9XM2gyMGR5Zz09IiwiZ2xiaWQiOiIxZDljZTJhN2Y4OTkwZWU4MGNmNDY3Yzc5MmQ0YzU1YzI1NDZmNmM1ZjM4NDUzMTMzNWE2OTY1NzQzMDZjNzAzNzRhNmUzODY5NTk0Njc4Mzg1YTZkMzY2NDMzNmE2NDRmNzY0NTY5NzU2NDM0NGU2OTU1MzI3MDc1MzkzMjRjMzM0ODMzNzE3ODU5Nzc3Mjc2NmM0MzZlNTI2NTZiNzA1NjM5NTk2ZjZlNGUzOTczNjg2MzU3NzQ0NzZhNmY1NzMzNjgzMjMwNjQ3OTY3M2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZ2xvYm9faWQiOiIwMjBjZWI5Yy04ZGE5LTQwN2QtOGMzZi05MzFiNDUyYmNmMTMiLCJpYXQiOjE3NDQwNTg2NDEsImlzcyI6Imh0dHBzOi8vZ29pZGMuZ2xvYm8uY29tL2F1dGgvcmVhbG1zL2dsb2JvLmNvbSIsImp0aSI6IjBjOTBhOTBjLWUwMWEtNDJlZi1hODY0LTQ1ZGRjNTY1N2RhMCIsInByZWZlcnJlZF91c2VybmFtZSI6Imx1Y2FzLmJhci4yMDE0LjkiLCJzY3AiOlsib3BlbmlkIiwicHJvZmlsZSJdLCJzZXNzaW9uX3N0YXRlIjoiNDJlMGE4YzAtMDlhZi00ZGE0LTllYzQtOTAyZGY1YzIxMWRmIiwic2lkIjoiNDJlMGE4YzAtMDlhZi00ZGE0LTllYzQtOTAyZGY1YzIxMWRmIiwic3ViIjoiMDIwY2ViOWMtOGRhOS00MDdkLThjM2YtOTMxYjQ1MmJjZjEzIiwidHlwIjoiQmVhcmVyIn0.p02dtESQuAL0OH101YPVFZn__Z__BlNACRq4R12rp-EZPZjt1yEELFzUhwAoe0UGq5VrggYlfKqG-AXHuTroH16llLNT76bEVTOtkdSIzJcAlx2VzoGXrt569g0lrN_lao9ip1_Su7eQuL3xr93msuIkDOiXofsN1mQ16kZfrB9nvQe70hX4KGqPSEyijxpSswlJ9g55k4vTsKNCLqJJadUs3hF0gGvEEc08Km3v9qZyLPDXNJSz7TL7mxZl44-vJ-fhCSXMwx31hcKB-lrKUMn0o51H4sLmJN-pWgDGdDw2D5NcPgqsxnhD5gllp5lHa9uXRX2YHssNvm182nrYbg" 
+}
+
+
+# Requisições iniciais
+mercado_data = requests.get(mercado_url).json()
+gatomestre_data = requests.get(gatomestre_url, headers=auth_header).json()
+
+# Dataframes fixos
+clubes_df = pd.DataFrame(
+    mercado_data['clubes']).T[['id', 'nome_fantasia']].rename(
+        columns={'nome_fantasia': 'clube'})
+posicoes_df = pd.DataFrame(
+    mercado_data['posicoes']).T[['id', 'nome']].rename(
+        columns={'nome': 'posicao'})
+status_df = pd.DataFrame(
+mercado_data['status']).T[['id', 'nome']].rename(columns={'nome': 'status'})
+atletas_df = pd.DataFrame(mercado_data['atletas'])
+gatomestre_df = pd.DataFrame(gatomestre_data).T
+
 with ThreadPoolExecutor(max_workers=4) as executor:
     list__rodada_df = list(
-        tqdm(executor.map(_fetch_rodada, range(1, RODADA_ATUAL + 1)),
-        total=RODADA_ATUAL, desc="Rodadas"))
+        tqdm(executor.map(_fetch_rodada, range(1, RODADA + 1)),
+        total=RODADA, desc="Rodadas"))
 
 rodadas_df = pd.concat(list__rodada_df)
 
@@ -131,4 +135,4 @@ database = database.drop(
 )
 
 # Export
-database.to_excel(f"dados__rodada_{RODADA_ATUAL}.xlsx", index=False)
+database.to_excel(f"dados__rodada_{RODADA}.xlsx", index=False)
