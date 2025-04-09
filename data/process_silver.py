@@ -27,9 +27,14 @@ dados_silver[minimos_df.columns] = minimos_df
 
 # Crie score unico
 dados_silver['score'] = (
-    dados_silver['media'] -
-    dados_silver['minval_1']
-    ) / (0.5 * dados_silver['preco'])
+    2 * dados_silver['media'] -
+    (
+        (
+            dados_silver['minval_1'] / 3 +
+            dados_silver['minval_2'] / 6 +
+            dados_silver['minval_3'] / 9)
+    )
+) / (0.5 * dados_silver['preco'])
 
 # Drop columns
 dados_silver = dados_silver.drop(
