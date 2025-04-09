@@ -26,15 +26,15 @@ gatomestre_data = requests.get(gatomestre_url, headers=auth_header).json()
 
 # Dataframes fixos
 clubes_df = pd.DataFrame(
-    mercado_data['clubes']).T[['id', 'nome_fantasia']].rename(columns={'nome_fantasia': 'clube'})
+    mercado_data['clubes']).T[['id', 'nome_fantasia']].rename(
+        columns={'nome_fantasia': 'clube'})
 posicoes_df = pd.DataFrame(
-    mercado_data['posicoes']).T[['id', 'nome']].rename(columns={'nome': 'posicao'})
+    mercado_data['posicoes']).T[['id', 'nome']].rename(
+        columns={'nome': 'posicao'})
 status_df = pd.DataFrame(
-    mercado_data['status']).T[['id', 'nome']].rename(columns={'nome': 'status'})
-atletas_df = pd.DataFrame(
-    mercado_data['atletas'])
-gatomestre_df = pd.DataFrame(
-    gatomestre_data).T
+mercado_data['status']).T[['id', 'nome']].rename(columns={'nome': 'status'})
+atletas_df = pd.DataFrame(mercado_data['atletas'])
+gatomestre_df = pd.DataFrame(gatomestre_data).T
 
 
 def _fetch_rodada(rodada_id):
