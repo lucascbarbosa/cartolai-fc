@@ -48,8 +48,4 @@ def optimize_lineup(
     reservas = selecionados.loc[
         selecionados.groupby("posicao")["preco"].idxmin()]
     titulares = selecionados.drop(reservas.index)
-    return selecionados.sort_values(by="posicao")
-
-
-time_ideal = optimize_lineup()
-print(time_ideal.to_string(index=False))
+    return titulares, reservas

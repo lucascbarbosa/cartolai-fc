@@ -1,6 +1,7 @@
 """Naive lineup based on score."""
 import argparse
 import pandas as pd
+from aux.optimizer import optimize_lineup
 
 # Parse args
 parser = argparse.ArgumentParser()
@@ -64,3 +65,5 @@ database = database[database['rodada_id'] == 2]
 # Filter columns
 database = database[[
     'atleta_id', 'apelido', 'clube', 'posicao', 'score', 'preco']]
+
+titulares, reservas = optimize_lineup(database, posicao_count, CARTOLETAS)
