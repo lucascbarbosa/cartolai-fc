@@ -11,7 +11,7 @@ parser.add_argument(
     required=False,
     default="4-3-3",
     choices=["4-3-3", "4-4-2", "3-5-2", "3-4-3", "4-5-1", "5-3-2", "5-4-1"],
-    help='Rodada atual')
+    help='Esquema tático')
 parser.add_argument('--rodada', type=int, required=True, help='Rodada atual')
 parser.add_argument(
     '--cartoletas',
@@ -42,12 +42,12 @@ def get_position_count() -> dict:
         num_lat = 2
 
     return {
-        'Técnico': 2,
-        'Goleiro': 2,
-        'Zagueiro': num_zag + 1,
-        'Lateral': num_lat + 1,
-        'Meia': num_mei + 1,
-        'Atacante': num_ata + 1
+        'Técnico': 1,
+        'Goleiro': 1,
+        'Zagueiro': num_zag,
+        'Lateral': num_lat,
+        'Meia': num_mei,
+        'Atacante': num_ata
     }
 
 
@@ -58,12 +58,37 @@ posicao_count = get_position_count()
 # Data #
 # Read dataframe andn filter columns
 database = pd.read_excel(f"../data/dados__rodada_{RODADA}.xlsx")
+database = database.dropna()
 
 # Filter last round
-database = database[database['rodada_id'] == 2]
+database = database[database['rodada_id'] == RODADA - 1]
 
 # Filter columns
 database = database[[
     'atleta_id', 'apelido', 'clube', 'posicao', 'score', 'preco']]
 
 titulares, reservas = optimize_lineup(database, posicao_count, CARTOLETAS)
+
+print("# TITULARES\n")
+for posicao in titulares['posicao'].unique():
+    grupo = titulares[titulares['posicao'] == posicao]
+    print(f"\n ## {posicao}")
+    for _, row in grupo.iterrows():
+        nome = row['apelido']
+        clube = row['clube']
+        preco = row['preco']
+        print(f"- {nome} ({clube}) – C$ {preco:.2f}")
+
+print("\n\n# RESERVAS\n")
+for posicao in reservas['posicao'].unique():
+    grupo = reservas[reservas['posicao'] == posicao]
+    print(f"\n ## {posicao}")
+    for _, row in grupo.iterrows():
+        nome = row['apelido']
+        clube = row['clube']
+        preco = row['preco']
+        print(f"- {nome} ({clube}) – C$ {preco:.2f}")
+
+
+total_preco = titulares['preco'].sum()
+print(f"\n\n# TOTAL: C${total_preco:.2f}")
