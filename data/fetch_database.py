@@ -136,10 +136,10 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, status: str) -> pd.DataFram
 
         # Expand preco
         if 'preco' in rodadas_df:
-            preco = pd.json_normalize(rodadas_df['preco']).rename(
+            preco_df = pd.json_normalize(rodadas_df['preco']).rename(
                 columns={'num': 'preco', 'valorizacao': 'preco_var'}
-            )['preco']
-            rodadas_df['preco'] = preco
+            )[['preco', 'preco_var']]
+            rodadas_df[preco_df.columns] = preco_df
 
         # Expand pontos
         if 'pontos' in rodadas_df:
@@ -151,7 +151,7 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, status: str) -> pd.DataFram
         rodadas_df = rodadas_df[
             [
                 'rodada_id', 'mpv', 'status', 'entrou_em_campo',
-                'pontos', 'preco'
+                'pontos', 'preco', 'preco_var'
             ] +
             list(rodadas_df.filter(like='scout_', axis=1).columns)
         ]
@@ -161,6 +161,8 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, status: str) -> pd.DataFram
         atual_df = pd.DataFrame([scouts])
         atual_df.columns = ['scout_' + c for c in atual_df.columns]
         atual_df['preco'] = gatomestre_data['preco']
+        atual_df['preco_var'] = (
+            gatomestre_data['preco'] - rodadas_df.iloc[-1, 5])
         atual_df['mpv'] = gatomestre_data['mpv']
         atual_df['rodada_id'] = len(rodadas_df) + 1
         atual_df['status'] = status
@@ -174,8 +176,6 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, status: str) -> pd.DataFram
         # Calcula variações de preco e pontuacao
         pontuacoes_df = pontuacoes_df.sort_values(
             by='rodada_id').reset_index(drop=True)
-        pontuacoes_df['preco_var'] = pontuacoes_df['preco']\
-            .diff().fillna(0.0)
         pontuacoes_df['pontos_var'] = pontuacoes_df['pontos']\
             .diff().fillna(0.0)
 
