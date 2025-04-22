@@ -40,6 +40,19 @@ database['is_casa'] = database['is_casa'].astype(int)
 # Replace '-' in mpv
 database['mpv'] = database['mpv'].replace('-', 0.0).astype(float)
 
+# Order columns
+database = database[[
+    'mpv', 'preco', 'preco_var', 'scout_FS', 'scout_DS',
+    'scout_G', 'scout_A', 'scout_FT', 'scout_FD', 'scout_FF', 'scout_SG',
+    'scout_DE', 'scout_DP', 'scout_PS', 'scout_PP', 'scout_PC', 'scout_I',
+    'scout_GC', 'scout_GS', 'scout_FC', 'scout_CA', 'scout_CV',
+    'pontos_var', 'pontos_mean', 'clube_aproveitamento',
+    'clube_adversario_aproveitamento', 'clube_posicao',
+    'clube_adversario_posicao', 'is_casa', 'posicao_Atacante',
+    'posicao_Goleiro', 'posicao_Lateral', 'posicao_Meia',
+    'posicao_Zagueiro', 'pontos'
+]]
+
 # Normalize
 scaler = MinMaxScaler()
 scaled_database = pd.DataFrame(
@@ -47,6 +60,9 @@ scaled_database = pd.DataFrame(
     columns=database.columns,
     index=database.index
 )
+
+# save scaler
+joblib.dump(scaler, f"saved_scalers/rodada_{RODADA}.pkl")
 
 # Split X and y
 X = scaled_database.drop(['pontos'], axis=1)
@@ -80,5 +96,4 @@ plt.grid(True)
 plt.show()
 
 # Save model
-# Save model
-joblib.dump(model, f"saved_models/modelo_valorizacao__rodada_{RODADA}.pkl")
+joblib.dump(model, f"saved_models/rodada_{RODADA}.pkl")
