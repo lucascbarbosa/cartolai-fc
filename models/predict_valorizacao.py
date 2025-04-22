@@ -9,17 +9,9 @@ from sklearn.preprocessing import MinMaxScaler
 
 # Parse args
 parser = argparse.ArgumentParser()
-parser.add_argument(
-    '--esquema',
-    type=str,
-    required=False,
-    default="4-3-3",
-    choices=["4-3-3", "4-4-2", "3-5-2", "3-4-3", "4-5-1", "5-3-2", "5-4-1"],
-    help='Rodada atual')
 parser.add_argument('--rodada', type=int, required=True, help='Rodada atual')
 args = parser.parse_args()
 RODADA = args.rodada
-ESQUEMA = args.esquema
 
 # Read dataframe
 database = pd.read_excel(f"../data/dados__rodada_{RODADA}.xlsx")
@@ -51,8 +43,8 @@ scaled_database = pd.DataFrame(
 )
 
 # Split X and y
-X = scaled_database.drop(['pontos'], axis=1)
-y = scaled_database['pontos']
+X = scaled_database.drop(['preco_var'], axis=1)
+y = scaled_database['preco_var']
 
 # Split train and test
 TEST_SPLIT = 0.2
@@ -74,8 +66,8 @@ plt.plot(
     [min(y_test), max(y_test)], [min(y_test), max(y_test)],
     color='red',
     linestyle='--')
-plt.xlabel('Pontuação Real')
-plt.ylabel('Pontuação predita')
-plt.title('Predição de pontuação')
+plt.xlabel('Valorização Real')
+plt.ylabel('Valorização predita')
+plt.title('Predição de Valorização')
 plt.grid(True)
 plt.show()
