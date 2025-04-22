@@ -143,10 +143,10 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, status: str) -> pd.DataFram
 
         # Expand pontos
         if 'pontos' in rodadas_df:
-            pontos = pd.json_normalize(rodadas_df['pontos']).rename(
+            pontos_df = pd.json_normalize(rodadas_df['pontos']).rename(
                 columns={'num': 'pontos', 'variacao': 'pontos_var'}
-            )['pontos']
-            rodadas_df['pontos'] = pontos
+            )[['pontos', 'pontos_var']]
+            rodadas_df[pontos_df.columns] = pontos_df
 
         rodadas_df = rodadas_df[
             [
@@ -167,6 +167,7 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, status: str) -> pd.DataFram
         atual_df['rodada_id'] = len(rodadas_df) + 1
         atual_df['status'] = status
         atual_df['pontos'] = np.nan
+        atual_df['pontos_var'] = np.nan
         atual_df['entrou_em_campo'] = None
 
         # Concatenate
@@ -194,13 +195,9 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, status: str) -> pd.DataFram
         jogos_cumsum = pontuacoes_df['entrou_em_campo'].shift(1).cumsum()
         scout_cols = pontuacoes_df.filter(like='scout_', axis=1).columns
         scout_cumsum = pontuacoes_df[scout_cols].shift(1).cumsum()
-        preco_cumsum = pontuacoes_df['preco'].shift(1).cumsum()
         pontos_cumsum = pontuacoes_df['pontos'].shift(1).cumsum()
         pontuacoes_df.loc[1:, scout_cols] = scout_cumsum.div(
             jogos_cumsum, axis=0).fillna(0.0)
-        pontuacoes_df['preco_mean'] = (
-            preco_cumsum / len(pontuacoes_df)
-        ).fillna(0.0)
         pontuacoes_df['pontos_mean'] = (
             pontos_cumsum / jogos_cumsum.replace(0, np.nan)
         ).fillna(0.0)

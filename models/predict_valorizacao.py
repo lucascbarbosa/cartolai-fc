@@ -28,7 +28,7 @@ database = database[
 database = database.drop([
     'apelido', 'atleta_id', 'entrou_em_campo',
     'status', 'clube', 'rodada_id', 'clube_id',
-    'clube_adversario_id', 'pontos', 'pontos_var'
+    'clube_adversario_id'
     ], axis=1)
 
 # Encode posicao
@@ -49,8 +49,8 @@ scaled_database = pd.DataFrame(
 )
 
 # Split X and y
-X = scaled_database.drop(['preco_var'], axis=1)
-y = scaled_database['preco_var']
+X = scaled_database.drop(['pontos'], axis=1)
+y = scaled_database['pontos']
 
 # Split train and test
 TEST_SPLIT = 0.2
