@@ -23,7 +23,7 @@ database = database[database['entrou_em_campo'] == 1.0].dropna()
 # Filter columns
 database = database.drop([
     'apelido', 'atleta_id', 'entrou_em_campo',
-    'status', 'clube', 'rodada_id', 'clube_id',
+    'clube', 'rodada_id', 'clube_id',
     'clube_adversario_id'], axis=1)
 
 # Encode posicao
