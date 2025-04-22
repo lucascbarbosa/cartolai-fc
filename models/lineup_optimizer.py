@@ -1,5 +1,6 @@
 """Naive lineup based on score."""
 import argparse
+import joblib
 import pandas as pd
 from aux.optimizer import optimize_lineup
 
@@ -23,6 +24,9 @@ args = parser.parse_args()
 RODADA = args.rodada
 ESQUEMA = args.esquema
 CARTOLETAS = args.cartoletas
+
+# Load model
+model = joblib.load(f"saved_models/modelo_valorizacao__rodada_{RODADA}.pkl")
 
 
 #############
@@ -61,11 +65,10 @@ database = pd.read_excel(f"../data/dados__rodada_{RODADA}.xlsx")
 database = database.dropna()
 
 # Filter last round
-database = database[database['rodada_id'] == RODADA - 1]
+database = database[database['rodada_id'] == RODADA]
 
 # Filter columns
-database = database[[
-    'atleta_id', 'apelido', 'clube', 'posicao', 'score', 'preco']]
+database = database.drop(['rodada_id', ''])
 
 titulares, reservas = optimize_lineup(database, posicao_count, CARTOLETAS)
 

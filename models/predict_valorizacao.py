@@ -1,6 +1,7 @@
 """Naive lineup based on score."""
 import argparse
 import pandas as pd
+import joblib
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
@@ -71,3 +72,7 @@ plt.ylabel('Valorização predita')
 plt.title('Predição de Valorização')
 plt.grid(True)
 plt.show()
+
+# Save model
+# Save model
+joblib.dump(model, f"saved_models/modelo_valorizacao__rodada_{RODADA}.pkl")
