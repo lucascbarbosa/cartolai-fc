@@ -169,6 +169,14 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, status: str) -> pd.DataFram
         pontuacoes_df = pd.concat([rodadas_df, atual_df])
         pontuacoes_df['atleta_id'] = atleta_id
 
+        # Calcula variações
+        pontuacoes_df = pontuacoes_df.sort_values(
+            by='rodada_id').reset_index(drop=True)
+        pontuacoes_df['preco_var'] = pontuacoes_df['preco']\
+            .diff().fillna(0.0)
+        pontuacoes_df['pontos_var'] = pontuacoes_df['pontos']\
+            .diff().fillna(0.0)
+
         # Remove columns only if they exist
         return pontuacoes_df.drop(columns=[col for col in ['scout_error', 'scout_message'] if col in pontuacoes_df.columns])
 

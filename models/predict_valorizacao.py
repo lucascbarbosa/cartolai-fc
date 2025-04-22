@@ -1,4 +1,4 @@
-"""Naive lineup based on score."""
+"""Predict price valorization."""
 import argparse
 import pandas as pd
 import joblib
@@ -23,7 +23,7 @@ database = database[database['entrou_em_campo'] == 1.0].dropna()
 # Filter columns
 database = database.drop([
     'apelido', 'atleta_id', 'entrou_em_campo',
-    'clube', 'rodada_id', 'clube_id',
+    'status', 'clube', 'rodada_id', 'clube_id',
     'clube_adversario_id'], axis=1)
 
 # Encode posicao
