@@ -62,6 +62,8 @@ posicao_count = get_position_count()
 # Data #
 # Read dataframe andn filter columns
 database = pd.read_excel(f"../data/dados__rodada_{RODADA}.xlsx")
+
+# Predict current round data
 database = database.dropna()
 
 # Filter last round

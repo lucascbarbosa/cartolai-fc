@@ -18,13 +18,18 @@ RODADA = args.rodada
 database = pd.read_excel(f"../data/dados__rodada_{RODADA}.xlsx")
 
 # Filter rows
-database = database[database['entrou_em_campo'] == 1.0].dropna()
+database = database[
+    (database['entrou_em_campo'] == 1.0) &
+    (database['rodada_id'] != 1) &
+    (database['rodada_id'] != RODADA)
+].dropna()
 
 # Filter columns
 database = database.drop([
     'apelido', 'atleta_id', 'entrou_em_campo',
     'status', 'clube', 'rodada_id', 'clube_id',
-    'clube_adversario_id'], axis=1)
+    'clube_adversario_id', 'pontos', 'pontos_var'
+    ], axis=1)
 
 # Encode posicao
 database = pd.get_dummies(database, columns=['posicao'])
@@ -61,6 +66,7 @@ mae = mean_absolute_error(y_test, y_pred)
 r2 = r2_score(y_test, y_pred)
 
 print(f"Resultados:\n  MSE: {mse}\n  MAE: {mae}\n  R^2: {r2}")
+
 plt.figure(figsize=(6, 6))
 plt.scatter(y_test, y_pred, alpha=0.5)
 plt.plot(

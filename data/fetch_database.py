@@ -7,6 +7,7 @@ import traceback
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
 
+pd.set_option('future.no_silent_downcasting', True)
 
 # Parse args
 parser = argparse.ArgumentParser()
@@ -124,6 +125,7 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, status: str) -> pd.DataFram
                 'status_pre': 'status'
             }
         )
+        rodadas_df['entrou_em_campo'] = rodadas_df['entrou_em_campo'].astype(int)
 
         # Rodadas completas
         if 'scouts' in rodadas_df:
@@ -169,7 +171,7 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, status: str) -> pd.DataFram
         pontuacoes_df = pd.concat([rodadas_df, atual_df])
         pontuacoes_df['atleta_id'] = atleta_id
 
-        # Calcula variações
+        # Calcula variações de preco e pontuacao
         pontuacoes_df = pontuacoes_df.sort_values(
             by='rodada_id').reset_index(drop=True)
         pontuacoes_df['preco_var'] = pontuacoes_df['preco']\
@@ -177,8 +179,32 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, status: str) -> pd.DataFram
         pontuacoes_df['pontos_var'] = pontuacoes_df['pontos']\
             .diff().fillna(0.0)
 
-        # Remove columns only if they exist
-        return pontuacoes_df.drop(columns=[col for col in ['scout_error', 'scout_message'] if col in pontuacoes_df.columns])
+        # Cast colunas
+        pontuacoes_df[
+            list(pontuacoes_df.filter(like='scout_', axis=1).columns) +
+            ['preco_var', 'preco', 'pontos_var', 'pontos',
+            'entrou_em_campo', 'mpv']
+        ] = pontuacoes_df[
+            list(pontuacoes_df.filter(like='scout_', axis=1).columns) +
+            ['preco_var', 'preco', 'pontos_var', 'pontos',
+            'entrou_em_campo', 'mpv']
+        ].astype(float)
+
+        # Crie médias cumulativas
+        jogos_cumsum = pontuacoes_df['entrou_em_campo'].shift(1).cumsum()
+        scout_cols = pontuacoes_df.filter(like='scout_', axis=1).columns
+        scout_cumsum = pontuacoes_df[scout_cols].shift(1).cumsum()
+        preco_cumsum = pontuacoes_df['preco'].shift(1).cumsum()
+        pontos_cumsum = pontuacoes_df['pontos'].shift(1).cumsum()
+        pontuacoes_df.loc[1:, scout_cols] = scout_cumsum.div(
+            jogos_cumsum, axis=0).fillna(0.0)
+        pontuacoes_df['preco_mean'] = (
+            preco_cumsum / len(pontuacoes_df)
+        ).fillna(0.0)
+        pontuacoes_df['pontos_mean'] = (
+            pontos_cumsum / jogos_cumsum.replace(0, np.nan)
+        ).fillna(0.0)
+        return pontuacoes_df
 
     except Exception as e:
         return pd.DataFrame()
@@ -189,7 +215,7 @@ gatomestre_url = "https://api.gatomestre.globo.com/api/v2/atletas/{atleta_id}"
 partidas_url = "https://api.cartola.globo.com/partidas/{rodada}"
 auth_header = {
     "Authorization":
-    "Bearer eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJXLUppTjhfZXdyWE9uVnJFN2lfOGpIY28yU1R4dEtHZF94aW01R2N4WS1ZIn0.eyJleHAiOjE3NDUzNDE0NDIsImlhdCI6MTc0NTMzNzg0MiwiYXV0aF90aW1lIjoxNzQ1MzM3ODQyLCJqdGkiOiJkYzYxM2ZlZC0wODE3LTQ1Y2EtOWY4YS1iNzk2OGJlZjc4YTQiLCJpc3MiOiJodHRwczovL2lkLmdsb2JvLmNvbS9hdXRoL3JlYWxtcy9nbG9iby5jb20iLCJzdWIiOiJmOjNjZGVhMWZiLTAwMmYtNDg5ZS1iOWMyLWQ1N2FiYTBhZTQ5NDowMjBjZWI5Yy04ZGE5LTQwN2QtOGMzZi05MzFiNDUyYmNmMTMiLCJ0eXAiOiJCZWFyZXIiLCJhenAiOiJnYXRvbWVzdHJlLXdlYkBhcHBzLmdsb2JvaWQiLCJub25jZSI6IjUwNjc1YzQyLWE5ZTYtNGY5Zi04ZTgwLWRjOTZhMzFiNTliZCIsInNlc3Npb25fc3RhdGUiOiI1MDkyNzE5NS0xMjA0LTRhYWUtOTc4YS00MDVlMTYzOTJiODEiLCJhY3IiOiIxIiwic2NvcGUiOiJvcGVuaWQgZW1haWwgcHJvZmlsZS1taW4gZ2xiaWQgZnMtaWQgZ2xvYm9pZCIsInNpZCI6IjUwOTI3MTk1LTEyMDQtNGFhZS05NzhhLTQwNWUxNjM5MmI4MSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJnbGJpZCI6IjE5MzZkMDA0MDVlNmRiYjNjYWFmODRlMWZkZTM5ZTBmOTRjMzA1MjY3NjI3NjQ1NTA0OTM3NjM3ODcxMmQ2ZDQxNGY1MjZmNDg3NDQ5NTM2MzM3NjI2YjZiNmM0YzU1NGU2ZDZmNDI0ZTQ2NzU3YTc3NzAzODcwMzg3ODUyNjYyZDUwNDM1OTYzNTg0YzQyNWY1NjRjNzM2NDQ2NTQzODZlMzQ0MTYyNTM1MjczMzQ0ODcyNjEzNDY2NTE2MjY4MzI0NTVhNzk3ODcyNzczZDNkM2EzMDNhNmM3NTYzNjE3MzJlNjI2MTcyMmUzMjMwMzEzNDJlMzkiLCJmc19pZCI6IkwwUmdidkVQSTdjeHEtbUFPUm9IdElTYzdia2tsTFVObW9CTkZ1endwOHA4eFJmLVBDWWNYTEJfVkxzZEZUOG40QWJTUnM0SHJhNGZRYmgyRVp5eHJ3PT0iLCJlbWFpbCI6Imx1Y2FzLmJhcmJvc2EuMDg5OUBnbWFpbC5jb20iLCJnbG9ib19pZCI6IjAyMGNlYjljLThkYTktNDA3ZC04YzNmLTkzMWI0NTJiY2YxMyJ9.Xu_gBTzPOSYuav1Evw0L7XZgc1BucGSgAzVNZFxTs1MIGZKwrglp4BDXgA_sHkDIGWEgZq5EI7QMzI0V-wkAAIyGDR6FNvhXROJESViCbsUslLVJCrfHG1F1mbes5l7NLZOBVqpKFE7DOypOw63H3q-kjfYBkl4k2RwBdfZPALuGxL3xQW5zt9wbW3tEwYcE1kVoFLYlx2-Vu6tf6p75AQFBuq3hEz3ySF8coVExr_yasKt-am-Gm6r4YYP4ZbuYv_F1v7kAmVQP9Ld8xfejexAXULZVDntKuOnhW-1sYJnour1PZmauo4bsAFMcIuI_Vovd7yFqwQ7DRamq7MGO-A"
+    "Bearer eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJXLUppTjhfZXdyWE9uVnJFN2lfOGpIY28yU1R4dEtHZF94aW01R2N4WS1ZIn0.eyJleHAiOjE3NDUzNTgwMTksImlhdCI6MTc0NTM1NDQxOSwiYXV0aF90aW1lIjoxNzQ1MzU0NDE5LCJqdGkiOiI5M2QyZmZlNS1iZmRkLTRmMTctYWMwMy0yYjhhYTJjMDZkNTIiLCJpc3MiOiJodHRwczovL2lkLmdsb2JvLmNvbS9hdXRoL3JlYWxtcy9nbG9iby5jb20iLCJzdWIiOiJmOjNjZGVhMWZiLTAwMmYtNDg5ZS1iOWMyLWQ1N2FiYTBhZTQ5NDowMjBjZWI5Yy04ZGE5LTQwN2QtOGMzZi05MzFiNDUyYmNmMTMiLCJ0eXAiOiJCZWFyZXIiLCJhenAiOiJnYXRvbWVzdHJlLXdlYkBhcHBzLmdsb2JvaWQiLCJub25jZSI6IjY2NDdkYWE3LTk0MTYtNDNjNi05NDViLTFiYjA5OGE2ZjIzYyIsInNlc3Npb25fc3RhdGUiOiI1MDkyNzE5NS0xMjA0LTRhYWUtOTc4YS00MDVlMTYzOTJiODEiLCJhY3IiOiIxIiwic2NvcGUiOiJvcGVuaWQgZW1haWwgcHJvZmlsZS1taW4gZ2xiaWQgZnMtaWQgZ2xvYm9pZCIsInNpZCI6IjUwOTI3MTk1LTEyMDQtNGFhZS05NzhhLTQwNWUxNjM5MmI4MSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJnbGJpZCI6IjE5MzZkMDA0MDVlNmRiYjNjYWFmODRlMWZkZTM5ZTBmOTRjMzA1MjY3NjI3NjQ1NTA0OTM3NjM3ODcxMmQ2ZDQxNGY1MjZmNDg3NDQ5NTM2MzM3NjI2YjZiNmM0YzU1NGU2ZDZmNDI0ZTQ2NzU3YTc3NzAzODcwMzg3ODUyNjYyZDUwNDM1OTYzNTg0YzQyNWY1NjRjNzM2NDQ2NTQzODZlMzQ0MTYyNTM1MjczMzQ0ODcyNjEzNDY2NTE2MjY4MzI0NTVhNzk3ODcyNzczZDNkM2EzMDNhNmM3NTYzNjE3MzJlNjI2MTcyMmUzMjMwMzEzNDJlMzkiLCJmc19pZCI6IkwwUmdidkVQSTdjeHEtbUFPUm9IdElTYzdia2tsTFVObW9CTkZ1endwOHA4eFJmLVBDWWNYTEJfVkxzZEZUOG40QWJTUnM0SHJhNGZRYmgyRVp5eHJ3PT0iLCJlbWFpbCI6Imx1Y2FzLmJhcmJvc2EuMDg5OUBnbWFpbC5jb20iLCJnbG9ib19pZCI6IjAyMGNlYjljLThkYTktNDA3ZC04YzNmLTkzMWI0NTJiY2YxMyJ9.b0UfMOgSLU5YVs31hORoj4f4xy-nBvj2OJE7CM7NqsHgh6TUu8JYTrLl7CEyG-F3hU22NEDmQiz8tcUoPJyNZ6GT7lih2MPLN_EbKbPnWVSJeRvlehyTDM6nxtHSbDfQuB6QK0JoZJVE-465bK76b63nKn1HDlekCOPZeJ2Ph8u_VNR5sH3ZYRT8YQoVmP7KAxO4EW5R4YSCWqPH3bcuhPv-_j4ww82Hh2E7_dJpuz4hd_suVApFEc-fFQ6MQTFiVMzD6l6yF5KZaEk4rCj1Paom5VkVxHsTPceNhKoFWg9mNLr0-cSB2NIr04jIbxLjT5BtLOnnxWCuF_mvEm6NLg"
 }
 
 # Atletas description
