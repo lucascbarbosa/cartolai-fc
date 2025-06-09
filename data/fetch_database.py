@@ -3,7 +3,6 @@ import argparse
 import numpy as np
 import pandas as pd
 import requests
-import traceback
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
 
@@ -105,7 +104,7 @@ def fetch__partidas_clubes__rodada(rodada_id: int) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def fetch__pontuacao_atletas__rodada(atleta_id: int, status: str) -> pd.DataFrame:
+def fetch__pontuacao_atletas__rodada(atleta_id: int, atleta_status: str) -> pd.DataFrame:
     """Processa base de pontuacao de atletas por rodada."""
     def _fetch_scouts(scouts_dict: dict) -> dict:
         """Format scouts."""
@@ -165,7 +164,7 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, status: str) -> pd.DataFram
             gatomestre_data['preco'] - rodadas_df.iloc[-1, 5])
         atual_df['mpv'] = gatomestre_data['mpv']
         atual_df['rodada_id'] = len(rodadas_df) + 1
-        atual_df['status'] = status
+        atual_df['status'] = atleta_status
         atual_df['pontos'] = np.nan
         atual_df['pontos_var'] = np.nan
         atual_df['entrou_em_campo'] = None
@@ -195,11 +194,17 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, status: str) -> pd.DataFram
         jogos_cumsum = pontuacoes_df['entrou_em_campo'].shift(1).cumsum()
         scout_cols = pontuacoes_df.filter(like='scout_', axis=1).columns
         scout_cumsum = pontuacoes_df[scout_cols].shift(1).cumsum()
+
         pontos_cumsum = pontuacoes_df['pontos'].shift(1).cumsum()
         pontuacoes_df.loc[1:, scout_cols] = scout_cumsum.div(
             jogos_cumsum, axis=0).fillna(0.0)
         pontuacoes_df['pontos_mean'] = (
             pontos_cumsum / jogos_cumsum.replace(0, np.nan)
+        ).fillna(0.0)
+
+        preco_cumsum = pontuacoes_df['preco'].shift(1).cumsum()
+        pontuacoes_df['preco_mean'] = (
+            preco_cumsum / jogos_cumsum.replace(0, np.nan)
         ).fillna(0.0)
         return pontuacoes_df
 
@@ -212,7 +217,7 @@ gatomestre_url = "https://api.gatomestre.globo.com/api/v2/atletas/{atleta_id}"
 partidas_url = "https://api.cartola.globo.com/partidas/{rodada}"
 auth_header = {
     "Authorization":
-    "Bearer eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJXLUppTjhfZXdyWE9uVnJFN2lfOGpIY28yU1R4dEtHZF94aW01R2N4WS1ZIn0.eyJleHAiOjE3NDUzNTgwMTksImlhdCI6MTc0NTM1NDQxOSwiYXV0aF90aW1lIjoxNzQ1MzU0NDE5LCJqdGkiOiI5M2QyZmZlNS1iZmRkLTRmMTctYWMwMy0yYjhhYTJjMDZkNTIiLCJpc3MiOiJodHRwczovL2lkLmdsb2JvLmNvbS9hdXRoL3JlYWxtcy9nbG9iby5jb20iLCJzdWIiOiJmOjNjZGVhMWZiLTAwMmYtNDg5ZS1iOWMyLWQ1N2FiYTBhZTQ5NDowMjBjZWI5Yy04ZGE5LTQwN2QtOGMzZi05MzFiNDUyYmNmMTMiLCJ0eXAiOiJCZWFyZXIiLCJhenAiOiJnYXRvbWVzdHJlLXdlYkBhcHBzLmdsb2JvaWQiLCJub25jZSI6IjY2NDdkYWE3LTk0MTYtNDNjNi05NDViLTFiYjA5OGE2ZjIzYyIsInNlc3Npb25fc3RhdGUiOiI1MDkyNzE5NS0xMjA0LTRhYWUtOTc4YS00MDVlMTYzOTJiODEiLCJhY3IiOiIxIiwic2NvcGUiOiJvcGVuaWQgZW1haWwgcHJvZmlsZS1taW4gZ2xiaWQgZnMtaWQgZ2xvYm9pZCIsInNpZCI6IjUwOTI3MTk1LTEyMDQtNGFhZS05NzhhLTQwNWUxNjM5MmI4MSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJnbGJpZCI6IjE5MzZkMDA0MDVlNmRiYjNjYWFmODRlMWZkZTM5ZTBmOTRjMzA1MjY3NjI3NjQ1NTA0OTM3NjM3ODcxMmQ2ZDQxNGY1MjZmNDg3NDQ5NTM2MzM3NjI2YjZiNmM0YzU1NGU2ZDZmNDI0ZTQ2NzU3YTc3NzAzODcwMzg3ODUyNjYyZDUwNDM1OTYzNTg0YzQyNWY1NjRjNzM2NDQ2NTQzODZlMzQ0MTYyNTM1MjczMzQ0ODcyNjEzNDY2NTE2MjY4MzI0NTVhNzk3ODcyNzczZDNkM2EzMDNhNmM3NTYzNjE3MzJlNjI2MTcyMmUzMjMwMzEzNDJlMzkiLCJmc19pZCI6IkwwUmdidkVQSTdjeHEtbUFPUm9IdElTYzdia2tsTFVObW9CTkZ1endwOHA4eFJmLVBDWWNYTEJfVkxzZEZUOG40QWJTUnM0SHJhNGZRYmgyRVp5eHJ3PT0iLCJlbWFpbCI6Imx1Y2FzLmJhcmJvc2EuMDg5OUBnbWFpbC5jb20iLCJnbG9ib19pZCI6IjAyMGNlYjljLThkYTktNDA3ZC04YzNmLTkzMWI0NTJiY2YxMyJ9.b0UfMOgSLU5YVs31hORoj4f4xy-nBvj2OJE7CM7NqsHgh6TUu8JYTrLl7CEyG-F3hU22NEDmQiz8tcUoPJyNZ6GT7lih2MPLN_EbKbPnWVSJeRvlehyTDM6nxtHSbDfQuB6QK0JoZJVE-465bK76b63nKn1HDlekCOPZeJ2Ph8u_VNR5sH3ZYRT8YQoVmP7KAxO4EW5R4YSCWqPH3bcuhPv-_j4ww82Hh2E7_dJpuz4hd_suVApFEc-fFQ6MQTFiVMzD6l6yF5KZaEk4rCj1Paom5VkVxHsTPceNhKoFWg9mNLr0-cSB2NIr04jIbxLjT5BtLOnnxWCuF_mvEm6NLg"
+    "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg5NWIwYmIwLTI4ODMtNDE3MC1hMDY2LTZkMDIwZjkzNGRlMyIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiY2FydG9sYUBhcHBzLmdsb2JvaWQiXSwiYXpwIjoiY2FydG9sYUBhcHBzLmdsb2JvaWQiLCJlbWFpbCI6Imx1Y2FzLmJhcmJvc2EuMDg5OUBnbWFpbC5jb20iLCJleHAiOjE3NDk0OTUwMjgsImZlZGVyYXRlZF9zaWQiOiIxYzhjMjRkZTMxYmQyMDM4NWYyYzhlNTk2OTU2Y2Q0Yzc3MTc4NzI0NTUzNzg0ZDUwNjU0OTU4NjcyZDRiMzIzMjM2NzI0ZjY3NzY1Nzc1MzI2NjRhNTczODUzNTQzODZhNTM1OTY3NGM2ZDM5MzU0YTMyNTM0NzZmNzY2YTczNDY3Mzc4Nzk2NTc5NjY3ODcxNTA3OTc5NDM2NTZkNTM3ODdhNTE2MTYzNTM2YjY5NzY0NDYyNTA2NTQ3N2E0NDRiNjk1NzM2Mzc2ZTQxM2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZnNfaWQiOiJxeHJFU3hNUGVJWGctSzIyNnJPZ3ZXdTJmSlc4U1Q4alNZZ0xtOTVKMlNHb3Zqc0ZzeHlleWZ4cVB5eUNlbVN4elFhY1NraXZEYlBlR3pES2lXNjduQT09IiwiZ2xiaWQiOiIxYzhjMjRkZTMxYmQyMDM4NWYyYzhlNTk2OTU2Y2Q0Yzc3MTc4NzI0NTUzNzg0ZDUwNjU0OTU4NjcyZDRiMzIzMjM2NzI0ZjY3NzY1Nzc1MzI2NjRhNTczODUzNTQzODZhNTM1OTY3NGM2ZDM5MzU0YTMyNTM0NzZmNzY2YTczNDY3Mzc4Nzk2NTc5NjY3ODcxNTA3OTc5NDM2NTZkNTM3ODdhNTE2MTYzNTM2YjY5NzY0NDYyNTA2NTQ3N2E0NDRiNjk1NzM2Mzc2ZTQxM2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZ2xvYm9faWQiOiIwMjBjZWI5Yy04ZGE5LTQwN2QtOGMzZi05MzFiNDUyYmNmMTMiLCJpYXQiOjE3NDk0OTE0MjcsImlzcyI6Imh0dHBzOi8vZ29pZGMuZ2xvYm8uY29tL2F1dGgvcmVhbG1zL2dsb2JvLmNvbSIsImp0aSI6IjJiNzc3Mzg2LTE1YzktNGE1NC1hNzViLTRkZTA2YzMwNzEzZSIsInByZWZlcnJlZF91c2VybmFtZSI6Imx1Y2FzLmJhci4yMDE0LjkiLCJzY3AiOlsib3BlbmlkIiwicHJvZmlsZSJdLCJzZXNzaW9uX3N0YXRlIjoiZWI5YjNkMGItZTY1OC00NTdiLWExODAtZGU5OTdhMjIwYjlmIiwic2lkIjoiZWI5YjNkMGItZTY1OC00NTdiLWExODAtZGU5OTdhMjIwYjlmIiwic3ViIjoiMDIwY2ViOWMtOGRhOS00MDdkLThjM2YtOTMxYjQ1MmJjZjEzIiwidHlwIjoiQmVhcmVyIn0.DT9Oww3itPacKgcJX1d_NWmNonO88L9LMzK4imEIcqkc3jrhzp5l2l3RNlGtXOLwC-G2eannHLZQnegt8tX-8F0F7Bh1uf52mS_sExVIdeKTU0b_Z8hLM5DRwO3KDobBLjJ-cdh-Nm9Cev4ydJ2yxmXls_oHzwM53RUd4IHlxZ-8i9wCckwpGQ6eoJLE9xwUVHOLg5L1oHVjK_Fxaw5O1nX9-4hWVqSXHQNRS9HncHmJ0hSM6MONNK1MmYtm29d1AHptoxwWCtpzOYpHZviQftRZpQ0XLlDImJbk_pDWgUQLSluTs8OZSPWwNX4rabS6AkpEq2wkM9PS107d9gERXA"
 }
 
 # Atletas description
