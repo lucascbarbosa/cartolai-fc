@@ -224,7 +224,7 @@ auth_header = {
 atletas_df = fetch__atletas__description()
 
 # Partidas rodada
-with ThreadPoolExecutor(max_workers=4) as executor:
+with ThreadPoolExecutor(max_workers=8) as executor:
     list__partida_df = list(
         tqdm(executor.map(fetch__partidas_clubes__rodada, range(1, RODADA + 1)),
         total=RODADA, desc="Rodadas"))
@@ -237,7 +237,7 @@ sem_tecnico = atletas_df[
 atletas_ids = sem_tecnico['atleta_id']
 atletas_status = sem_tecnico['status']
 atletas_df = atletas_df.drop(['status'], axis=1)
-with ThreadPoolExecutor(max_workers=8) as executor:
+with ThreadPoolExecutor(max_workers=16) as executor:
     list__pontuacao_df = list(
         tqdm(executor.map(
             fetch__pontuacao_atletas__rodada,
