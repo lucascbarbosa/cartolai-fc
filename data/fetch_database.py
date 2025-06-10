@@ -205,10 +205,16 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, atleta_status: str) -> pd.D
         # Cria todas as colunas de lag de uma vez só para evitar fragmentação
         lag_dfs = []
         for col in metric_cols:
-            lag_cols = {}
-            for i in range(1, 6):
-                lag_cols[f'{col}_lag{i}'] = pontuacoes_df[
-                    col].shift(i).fillna(0.0)
+            if col != 'mpv':
+                lag_cols = {}
+                for i in range(1, 6):
+                    lag_cols[f'{col}_lag{i}'] = pontuacoes_df[
+                        col].shift(i).fillna(0.0)
+            else:
+                lag_cols = {}
+                for i in range(1, 5):
+                    lag_cols[f'{col}_lag{i}'] = pontuacoes_df[
+                        col].shift(i).fillna(0.0)
             lag_dfs.append(pd.DataFrame(lag_cols))
         lags_df = pd.concat(lag_dfs, axis=1)
         pontuacoes_df = pd.concat([pontuacoes_df, lags_df], axis=1)
