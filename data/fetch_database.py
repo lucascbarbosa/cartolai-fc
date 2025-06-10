@@ -14,10 +14,28 @@ parser.add_argument('--rodada', type=int, required=True, help='Rodada atual')
 args = parser.parse_args()
 RODADA = args.rodada
 
-SCOUTS = [
-    'G', 'A', 'FT', 'FD', 'FF', 'FS', 'FF', 'FS', 'SG', 'DS', 'DE', 'DP',
-    'PS', 'PP', 'PC', 'I', 'GC', 'GS', 'FC', 'CA', 'CV'
-]
+SCOUTS_SCORE = {
+    'G': 8.0,    # Gol
+    'A': 5.0,    # Assistência
+    'SG': 5.0,   # Jogo Sem Sofrer Gol
+    'DP': 7.0,   # Defesa de Pênalti
+    'FT': 3.0,   # Finalização na Trave
+    'DS': 1.5,   # Desarme
+    'DE': 1.0,   # Defesa
+    'FD': 1.2,   # Finalização Defendida
+    'FF': 0.8,   # Finalização pra Fora
+    'FS': 0.5,   # Falta Sofrida
+    'PS': 1.0,   # Pênalti Sofrido
+    'PP': -4.0,  # Pênalti Perdido
+    'GC': -3.0,  # Gol Contra
+    'CV': -3.0,  # Cartão Vermelho
+    'CA': -1.0,  # Cartão Amarelo
+    'GS': -1.0,  # Gol Sofrido
+    'PC': -1.0,  # Pênalti Cometido
+    'FC': -0.3,  # Falta Cometida
+    'I': -0.1,   # Impedimento
+    'PI': -0.1,  # Passe Incompleto
+}
 
 
 #############
@@ -108,7 +126,7 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, atleta_status: str) -> pd.D
     """Processa base de pontuacao de atletas por rodada."""
     def _fetch_scouts(scouts_dict: dict) -> dict:
         """Format scouts."""
-        for scout in SCOUTS:
+        for scout in SCOUTS_SCORE.keys():
             if scout not in scouts_dict:
                 scouts_dict[scout] = 0.0
         return scouts_dict
@@ -124,12 +142,17 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, atleta_status: str) -> pd.D
                 'status_pre': 'status'
             }
         )
-        rodadas_df['entrou_em_campo'] = rodadas_df['entrou_em_campo'].astype(int)
+        rodadas_df['entrou_em_campo'] = rodadas_df[
+            'entrou_em_campo'].astype(int)
 
         # Rodadas completas
         if 'scouts' in rodadas_df:
             rodadas_df['scouts'] = rodadas_df['scouts'].apply(_fetch_scouts)
             scouts_df = pd.json_normalize(rodadas_df['scouts']).fillna(0)
+            # Aplica a pontuação de cada scout
+            for scout, score in SCOUTS_SCORE.items():
+                if scout in scouts_df.columns:
+                    scouts_df[scout] = scouts_df[scout] * score
             scouts_df.columns = ['scout_' + c for c in scouts_df.columns]
             rodadas_df[scouts_df.columns] = scouts_df
 
@@ -156,7 +179,7 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, atleta_status: str) -> pd.D
         ]
 
         # Rodada atual
-        scouts = {scout: np.nan for scout in SCOUTS}
+        scouts = {scout: np.nan for scout in SCOUTS_SCORE.keys()}
         atual_df = pd.DataFrame([scouts])
         atual_df.columns = ['scout_' + c for c in atual_df.columns]
         atual_df['preco'] = gatomestre_data['preco']
@@ -184,17 +207,18 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, atleta_status: str) -> pd.D
         for col in metric_cols:
             lag_cols = {}
             for i in range(1, 6):
-                lag_cols[f'{col}_lag{i}'] = pontuacoes_df[col].shift(i)
+                lag_cols[f'{col}_lag{i}'] = pontuacoes_df[
+                    col].shift(i).fillna(0.0)
             lag_dfs.append(pd.DataFrame(lag_cols))
         lags_df = pd.concat(lag_dfs, axis=1)
         pontuacoes_df = pd.concat([pontuacoes_df, lags_df], axis=1)
         pontuacoes_df = pontuacoes_df.drop(scout_cols, axis=1)
 
-        # Calcula
         return pontuacoes_df
 
     except Exception as e:
         return pd.DataFrame()
+
 
 # URLs e headers
 mercado_url = "https://api.cartola.globo.com/atletas/mercado"
