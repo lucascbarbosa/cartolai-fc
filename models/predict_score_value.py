@@ -13,6 +13,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--rodada', type=int, required=True, help='Rodada atual')
 args = parser.parse_args()
 RODADA = args.rodada
+TEST_SPLIT = 0.2
+OUTPUT_COL = 'preco_var'
 
 # Read dataframe
 database = pd.read_excel(f"../data/dados__rodada_{RODADA}.xlsx")
@@ -34,26 +36,25 @@ database = database.drop([
 # Encode posicao
 database = pd.get_dummies(database, columns=['posicao'])
 
-# Convert is_casa to int
-database['is_casa'] = database['is_casa'].astype(int)
+# Convert boolean columns to int
+boolean_cols = ['is_casa'] + [
+    col for col in database.columns if col.startswith('posicao_')
+]
+database[boolean_cols] = database[boolean_cols].astype(int)
 
 # Replace '-' in mpv
-database['mpv'] = database['mpv'].replace('-', 0.0).astype(float)
+mpv_cols = [
+    col for col in database.columns if col.startswith('mpv_')
+]
+pd.set_option('future.no_silent_downcasting', True)
+database[mpv_cols] = (
+    database[mpv_cols]
+    .replace('-', 0.0)
+)
 
-# Order columns
-database = database[[
-    'mpv', 'preco', 'preco_mean', 'preco_var', 'scout_FS', 'scout_DS',
-    'scout_G', 'scout_A', 'scout_FT', 'scout_FD', 'scout_FF', 'scout_SG',
-    'scout_DE', 'scout_DP', 'scout_PS', 'scout_PP', 'scout_PC', 'scout_I',
-    'scout_GC', 'scout_GS', 'scout_FC', 'scout_CA', 'scout_CV',
-    'pontos', 'pontos_mean', 'pontos_var', 'clube_aproveitamento',
-    'clube_adversario_aproveitamento', 'clube_posicao',
-    'clube_adversario_posicao', 'is_casa', 'posicao_Atacante',
-    'posicao_Goleiro', 'posicao_Lateral', 'posicao_Meia',
-    'posicao_Zagueiro',
-]]
-y_min = database['preco'].min()
-y_max = database['preco'].max()
+# Min and max vlues
+y_min = database[OUTPUT_COL].min()
+y_max = database[OUTPUT_COL].max()
 
 # Normalize
 scaler = MinMaxScaler()
@@ -71,10 +72,9 @@ X = scaled_database.drop(
     ['preco', 'preco_var', 'pontos', 'pontos_var'],
     axis=1
 )
-y = scaled_database['preco']
+y = scaled_database[OUTPUT_COL]
 
 # Split train and test
-TEST_SPLIT = 0.2
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=TEST_SPLIT, random_state=42)
 
