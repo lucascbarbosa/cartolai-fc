@@ -184,34 +184,36 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, atleta_status: str) -> pd.D
         scout_cols = [
             c for c in pontuacoes_df.columns if c.startswith('scout_')
         ]
-        metric_cols = scout_cols + ['mpv', 'preco', 'pontos']
 
         # Ordena por rodada
         pontuacoes_df = pontuacoes_df.sort_values(
             'rodada_id').reset_index(drop=True)
 
-        # Para cada coluna, cria as 5 últimas janelas
-        # Cria todas as colunas de lag de uma vez só para evitar fragmentação
-        lag_dfs = []
-        for col in metric_cols:
-            if col in ['preco', 'mpv']:  # A priori
-                lag_cols = {}
-                for i in range(5):
-                    lag_cols[f'{col}_lag{i + 1}'] = pontuacoes_df[
-                        col].shift(i).fillna(0.0)
-                pontuacoes_df[col] = pontuacoes_df[col].shift(-1)
+        # Calculates mean
+        pontuacoes_df[
+            'pontos_mean'
+        ] = pontuacoes_df['pontos'].shift(1).expanding().mean()
+        pontuacoes_df[
+            'mpv_mean'
+        ] = pontuacoes_df['mpv'].expanding().mean()
+        pontuacoes_df[
+            'preco_mean'
+        ] = pontuacoes_df['preco'].expanding().mean()
 
-            else:  # A posteriori
-                lag_cols = {}
-                for i in range(1, 6):
-                    lag_cols[f'{col}_lag{i}'] = pontuacoes_df[
-                        col].shift(i).fillna(0.0)
-            lag_dfs.append(pd.DataFrame(lag_cols))
-        lags_df = pd.concat(lag_dfs, axis=1)
-        pontuacoes_df = pd.concat([pontuacoes_df, lags_df], axis=1)
-        pontuacoes_df = pontuacoes_df.drop(scout_cols, axis=1)
+        # Fetch previous values
+        pontuacoes_df['pontos_prev'] = pontuacoes_df['pontos'].shift(1)
+        pontuacoes_df['preco_prev'] = pontuacoes_df['preco']
+        pontuacoes_df['mpv_prev'] = pontuacoes_df['mpv']
 
-        return pontuacoes_df
+        pontuacoes_df['mpv'] = pontuacoes_df['mpv'].shift(-1)
+        pontuacoes_df['preco'] = pontuacoes_df['preco'].shift(-1)
+
+        for col in scout_cols:
+            pontuacoes_df[
+                f'{col}_mean'
+            ] = pontuacoes_df[col].shift(1).expanding().mean()
+
+        return pontuacoes_df.drop(scout_cols, axis=1)
 
     except Exception as e:
         return pd.DataFrame()
@@ -223,7 +225,7 @@ gatomestre_url = "https://api.gatomestre.globo.com/api/v2/atletas/{atleta_id}"
 partidas_url = "https://api.cartola.globo.com/partidas/{rodada}"
 auth_header = {
     "Authorization":
-    "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg5NWIwYmIwLTI4ODMtNDE3MC1hMDY2LTZkMDIwZjkzNGRlMyIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiY2FydG9sYUBhcHBzLmdsb2JvaWQiXSwiYXpwIjoiY2FydG9sYUBhcHBzLmdsb2JvaWQiLCJlbWFpbCI6Imx1Y2FzLmJhcmJvc2EuMDg5OUBnbWFpbC5jb20iLCJleHAiOjE3NDk1ODA5NjcsImZlZGVyYXRlZF9zaWQiOiIxYzhjMjRkZTMxYmQyMDM4NWYyYzhlNTk2OTU2Y2Q0Yzc3MTc4NzI0NTUzNzg0ZDUwNjU0OTU4NjcyZDRiMzIzMjM2NzI0ZjY3NzY1Nzc1MzI2NjRhNTczODUzNTQzODZhNTM1OTY3NGM2ZDM5MzU0YTMyNTM0NzZmNzY2YTczNDY3Mzc4Nzk2NTc5NjY3ODcxNTA3OTc5NDM2NTZkNTM3ODdhNTE2MTYzNTM2YjY5NzY0NDYyNTA2NTQ3N2E0NDRiNjk1NzM2Mzc2ZTQxM2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZnNfaWQiOiJxeHJFU3hNUGVJWGctSzIyNnJPZ3ZXdTJmSlc4U1Q4alNZZ0xtOTVKMlNHb3Zqc0ZzeHlleWZ4cVB5eUNlbVN4elFhY1NraXZEYlBlR3pES2lXNjduQT09IiwiZ2xiaWQiOiIxYzhjMjRkZTMxYmQyMDM4NWYyYzhlNTk2OTU2Y2Q0Yzc3MTc4NzI0NTUzNzg0ZDUwNjU0OTU4NjcyZDRiMzIzMjM2NzI0ZjY3NzY1Nzc1MzI2NjRhNTczODUzNTQzODZhNTM1OTY3NGM2ZDM5MzU0YTMyNTM0NzZmNzY2YTczNDY3Mzc4Nzk2NTc5NjY3ODcxNTA3OTc5NDM2NTZkNTM3ODdhNTE2MTYzNTM2YjY5NzY0NDYyNTA2NTQ3N2E0NDRiNjk1NzM2Mzc2ZTQxM2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZ2xvYm9faWQiOiIwMjBjZWI5Yy04ZGE5LTQwN2QtOGMzZi05MzFiNDUyYmNmMTMiLCJpYXQiOjE3NDk1NzczNjcsImlzcyI6Imh0dHBzOi8vZ29pZGMuZ2xvYm8uY29tL2F1dGgvcmVhbG1zL2dsb2JvLmNvbSIsImp0aSI6IjkwOGY5NGRhLWJmYTQtNDE4Zi1iMzhkLTI3OTNmNmZiZTY0NCIsInByZWZlcnJlZF91c2VybmFtZSI6Imx1Y2FzLmJhci4yMDE0LjkiLCJzY3AiOlsib3BlbmlkIiwicHJvZmlsZSJdLCJzZXNzaW9uX3N0YXRlIjoiZWI5YjNkMGItZTY1OC00NTdiLWExODAtZGU5OTdhMjIwYjlmIiwic2lkIjoiZWI5YjNkMGItZTY1OC00NTdiLWExODAtZGU5OTdhMjIwYjlmIiwic3ViIjoiMDIwY2ViOWMtOGRhOS00MDdkLThjM2YtOTMxYjQ1MmJjZjEzIiwidHlwIjoiQmVhcmVyIn0.dm9gxAesbUkWsaDYh10WgXdM6aOkBaGk3g73BeLIGO1QDrM_P-Gm1C4P8BZrrWXzNYKkm9xGlbMWwAX5wSwZUMCN3qBNBRTbY0jAW2DShgjDjp1ydiCaDwdtfMYwrpqzcU4xH87ZHu8oG4HXkDqhfmdUo4kB2424Ff69X52etGoUKyiJbPWdtzMPd6wcR5V-EkOx0vnOodYPFfYnLTEqW_H06RPQcAGcMpLY-XBpl2EMj5jIry-MpFB6B7fCnurwr-ZhBDWp7PcqFgsx3a89GI9PP939FerEj-fW4hEbqN_uPzGl2uoILwsZgLN-cYWQ3K7Z-dffL9R0sBn_N7pZag"
+    "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg5NWIwYmIwLTI4ODMtNDE3MC1hMDY2LTZkMDIwZjkzNGRlMyIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiY2FydG9sYUBhcHBzLmdsb2JvaWQiXSwiYXpwIjoiY2FydG9sYUBhcHBzLmdsb2JvaWQiLCJlbWFpbCI6Imx1Y2FzLmJhcmJvc2EuMDg5OUBnbWFpbC5jb20iLCJleHAiOjE3NDk1ODY2MzIsImZlZGVyYXRlZF9zaWQiOiIxYzhjMjRkZTMxYmQyMDM4NWYyYzhlNTk2OTU2Y2Q0Yzc3MTc4NzI0NTUzNzg0ZDUwNjU0OTU4NjcyZDRiMzIzMjM2NzI0ZjY3NzY1Nzc1MzI2NjRhNTczODUzNTQzODZhNTM1OTY3NGM2ZDM5MzU0YTMyNTM0NzZmNzY2YTczNDY3Mzc4Nzk2NTc5NjY3ODcxNTA3OTc5NDM2NTZkNTM3ODdhNTE2MTYzNTM2YjY5NzY0NDYyNTA2NTQ3N2E0NDRiNjk1NzM2Mzc2ZTQxM2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZnNfaWQiOiJxeHJFU3hNUGVJWGctSzIyNnJPZ3ZXdTJmSlc4U1Q4alNZZ0xtOTVKMlNHb3Zqc0ZzeHlleWZ4cVB5eUNlbVN4elFhY1NraXZEYlBlR3pES2lXNjduQT09IiwiZ2xiaWQiOiIxYzhjMjRkZTMxYmQyMDM4NWYyYzhlNTk2OTU2Y2Q0Yzc3MTc4NzI0NTUzNzg0ZDUwNjU0OTU4NjcyZDRiMzIzMjM2NzI0ZjY3NzY1Nzc1MzI2NjRhNTczODUzNTQzODZhNTM1OTY3NGM2ZDM5MzU0YTMyNTM0NzZmNzY2YTczNDY3Mzc4Nzk2NTc5NjY3ODcxNTA3OTc5NDM2NTZkNTM3ODdhNTE2MTYzNTM2YjY5NzY0NDYyNTA2NTQ3N2E0NDRiNjk1NzM2Mzc2ZTQxM2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZ2xvYm9faWQiOiIwMjBjZWI5Yy04ZGE5LTQwN2QtOGMzZi05MzFiNDUyYmNmMTMiLCJpYXQiOjE3NDk1ODMwMzEsImlzcyI6Imh0dHBzOi8vZ29pZGMuZ2xvYm8uY29tL2F1dGgvcmVhbG1zL2dsb2JvLmNvbSIsImp0aSI6ImMwNzM2MWZmLTQ2NWUtNDExMy04ODFkLTZmY2YzMDEzZGI0MyIsInByZWZlcnJlZF91c2VybmFtZSI6Imx1Y2FzLmJhci4yMDE0LjkiLCJzY3AiOlsib3BlbmlkIiwicHJvZmlsZSJdLCJzZXNzaW9uX3N0YXRlIjoiZWI5YjNkMGItZTY1OC00NTdiLWExODAtZGU5OTdhMjIwYjlmIiwic2lkIjoiZWI5YjNkMGItZTY1OC00NTdiLWExODAtZGU5OTdhMjIwYjlmIiwic3ViIjoiMDIwY2ViOWMtOGRhOS00MDdkLThjM2YtOTMxYjQ1MmJjZjEzIiwidHlwIjoiQmVhcmVyIn0.e00AKjj29mViJ5J5SutWDQVFY45bHJjKZKv_XJUOi8nSL87fWZzjlb0ZHaYLHItey5xP4OwYlVB_DqbLRLNmvyMvVJ3azchsnWdsb86ZIsdZzlXapVl6SmD6H7n4d9SbP0THkRBprolpqeftgSCJkzGyT3XCqwP_mySDHauGsHlduxj6Cwj6W6NQlXc6wgw78OqLDuvFEJMoO6XNATUhCog0qT1AcaN8IsKyhsRm571879kV1zoN57yJFlRm8S0HDd6LKfWPMyPUHIrdf1xR4TSx4gh3rny2mssXX-IhYApSAyYra0iDs8cSZGBN_yGcR-6RuxiOhydGcqCfzz6p2Q"
 }
 
 # Atletas description

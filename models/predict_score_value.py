@@ -47,8 +47,8 @@ def process_pontuacao_database(database: pd.DataFrame):
     )
 
     # Split databases
-    train_database = scaled_database[database['rodada_id'].isin(range(2, 11))]
-    eval_database = scaled_database[database['rodada_id'].isin(range(11, 12))]
+    train_database = scaled_database[database['rodada_id'].isin(range(2, 10))]
+    eval_database = scaled_database[database['rodada_id'].isin(range(10, 12))]
     test_database = scaled_database[database['rodada_id'] == 12]
 
     # Scale
@@ -81,15 +81,17 @@ def process_preco_database(database: pd.DataFrame):
         (database['rodada_id'] == RODADA)
     ]
 
-    # Replace '-' in mpv_lag1
-    database['mpv_lag1'] = database['mpv_lag1'].replace('-', 0.0)
+    # Replace '-' in mpv
+    database['mpv_mean'] = database['mpv_mean'].replace('-', 0.0)
+    database['mpv_prev'] = database['mpv_prev'].replace('-', 0.0)
+    database['mpv'] = database['mpv'].replace('-', 0.0)
 
     # Create used columns
     database.loc[:, 'pontos_var'] = (
-        database.loc[:, 'pontos'] - database.loc[:, 'mpv_lag1']
+        database.loc[:, 'pontos'] - database.loc[:, 'mpv_prev']
     ).copy()
     database.loc[:, 'preco_var'] = (
-        database.loc[:, 'preco'] - database.loc[:, 'preco_lag1']
+        database.loc[:, 'preco'] - database.loc[:, 'preco_prev']
     )
     scaled_database = database[['pontos_var', 'preco_var']]
 
@@ -120,7 +122,11 @@ def process_preco_database(database: pd.DataFrame):
 
 
 def _split_pontuacao_data(database: pd.DataFrame):
-    X = database.drop(['mpv', 'preco', 'pontos'], axis=1)
+    X = database.drop(
+        ['mpv', 'mpv_prev', 'mpv_mean', 'preco', 'pontos'],
+        axis=1
+    )
+    print(database.corr()['pontos'])
     y = database['pontos']
     return X, y
 
@@ -165,38 +171,38 @@ y_pred = PONTOS_MODEL.predict(X_test)
 y_pred = (PONTOS_MODEL.predict(X_test) * (y_max - y_min) + y_min).round(1)
 database.loc[database['rodada_id'] == RODADA, 'pontos'] = y_pred
 
-##########
-# Preco #
-# Process database
-(
-    train_database,
-    eval_database,
-    test_database
-) = database.pipe(process_preco_database)
+# ##########
+# # Preco #
+# # Process database
+# (
+#     train_database,
+#     eval_database,
+#     test_database
+# ) = database.pipe(process_preco_database)
 
-# Split X and y
-X_train, y_train = _split_preco_data(train_database)
-X_eval, y_eval = _split_preco_data(eval_database)
-X_test, y_test = _split_preco_data(test_database)
+# # Split X and y
+# X_train, y_train = _split_preco_data(train_database)
+# X_eval, y_eval = _split_preco_data(eval_database)
+# X_test, y_test = _split_preco_data(test_database)
 
-# Fit
-PRECO_MODEL.fit(X_train, y_train)
+# # Fit
+# PRECO_MODEL.fit(X_train, y_train)
 
-# Evaluate
-y_pred = (PRECO_MODEL.predict(X_eval) * (y_max - y_min) + y_min).round(1)
-y_eval = (y_eval * (y_max - y_min) + y_min).round(1)
-mse = mean_squared_error(y_eval, y_pred)
-r2 = r2_score(y_eval, y_pred)
-print(f"> PREÇO: MSE: {mse:.4f} R2: {r2:.4f}")
+# # Evaluate
+# y_pred = (PRECO_MODEL.predict(X_eval) * (y_max - y_min) + y_min).round(1)
+# y_eval = (y_eval * (y_max - y_min) + y_min).round(1)
+# mse = mean_squared_error(y_eval, y_pred)
+# r2 = r2_score(y_eval, y_pred)
+# print(f"> PREÇO: MSE: {mse:.4f} R2: {r2:.4f}")
 
-# Predict
-y_pred = PRECO_MODEL.predict(X_test)
-y_pred = (PRECO_MODEL.predict(X_test) * (y_max - y_min) + y_min).round(1)
-database.loc[database['rodada_id'] == RODADA, 'preco'] = y_pred
+# # Predict
+# y_pred = PRECO_MODEL.predict(X_test)
+# y_pred = (PRECO_MODEL.predict(X_test) * (y_max - y_min) + y_min).round(1)
+# database.loc[database['rodada_id'] == RODADA, 'preco'] = y_pred
 
-# Valorizacao
-database['valorizacao'] = database['preco'] - database['preco_lag1']
+# # Valorizacao
+# database['valorizacao'] = database['preco'] - database['preco_mean']
 
-# Save excel
-database.to_excel(f"../results/dados__rodada_{RODADA}.xlsx", index=False)
+# # Save excel
+# database.to_excel(f"../results/dados__rodada_{RODADA}.xlsx", index=False)
 
