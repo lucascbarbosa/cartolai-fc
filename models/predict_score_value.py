@@ -1,6 +1,5 @@
 """Predict price valorization."""
 import pandas as pd
-import joblib
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import MinMaxScaler
@@ -13,8 +12,9 @@ PRECO_MODEL = LinearRegression()
 
 #############
 # Functions #
-def process_database(database: pd.DataFrame):
-    """Process database."""
+def process_pontuacao_database(database: pd.DataFrame):
+    """Process database for pontuacao prediction."""
+    database = database.copy()
     # Remove jogadores que não jogaram
     database = database[
         (database['entrou_em_campo'] == 1.0) |
@@ -47,6 +47,53 @@ def process_database(database: pd.DataFrame):
     )
 
     # Split databases
+    train_database = scaled_database[database['rodada_id'].isin(range(2, 11))]
+    eval_database = scaled_database[database['rodada_id'].isin(range(11, 12))]
+    test_database = scaled_database[database['rodada_id'] == 12]
+
+    # Scale
+    scaler = MinMaxScaler()
+    train_database = pd.DataFrame(
+        scaler.fit_transform(train_database),
+        columns=train_database.columns,
+        index=train_database.index
+    )
+    eval_database = pd.DataFrame(
+        scaler.transform(eval_database),
+        columns=eval_database.columns,
+        index=eval_database.index
+    )
+    test_database = pd.DataFrame(
+        scaler.transform(test_database),
+        columns=test_database.columns,
+        index=test_database.index
+    )
+
+    return train_database, eval_database, test_database
+
+
+def process_preco_database(database: pd.DataFrame):
+    """Process database for preco prediction."""
+    database = database.copy()
+    # Remove jogadores que não jogaram
+    database = database[
+        (database['entrou_em_campo'] == 1.0) |
+        (database['rodada_id'] == RODADA)
+    ]
+
+    # Replace '-' in mpv_lag1
+    database['mpv_lag1'] = database['mpv_lag1'].replace('-', 0.0)
+
+    # Create used columns
+    database.loc[:, 'pontos_var'] = (
+        database.loc[:, 'pontos'] - database.loc[:, 'mpv_lag1']
+    ).copy()
+    database.loc[:, 'preco_var'] = (
+        database.loc[:, 'preco'] - database.loc[:, 'preco_lag1']
+    )
+    scaled_database = database[['pontos_var', 'preco_var']]
+
+    # Split databases
     train_database = scaled_database[database['rodada_id'].isin(range(2, 10))]
     eval_database = scaled_database[database['rodada_id'].isin(range(10, 12))]
     test_database = scaled_database[database['rodada_id'] == 12]
@@ -69,61 +116,41 @@ def process_database(database: pd.DataFrame):
         index=test_database.index
     )
 
-    # save scaler
-    joblib.dump(scaler, f"saved_scalers/rodada_{RODADA}.pkl")
-
     return train_database, eval_database, test_database
+
+
+def _split_pontuacao_data(database: pd.DataFrame):
+    X = database.drop(['mpv', 'preco', 'pontos'], axis=1)
+    y = database['pontos']
+    return X, y
+
+
+def _split_preco_data(database: pd.DataFrame):
+    X = database['pontos_var'].to_frame()
+    y = database['preco_var']
+    return X, y
 
 
 # Read dataframe
 database = pd.read_excel(f"../data/dados__rodada_{RODADA}.xlsx")
-y_min = database['pontos'].min()
-y_max = database['pontos'].max()
 
 # Process database
 (
     train_database,
     eval_database,
     test_database
-) = database.pipe(process_database)
+) = database.pipe(process_pontuacao_database)
 
+##########
+# Pontos #
 # Split X and y
-X_train = train_database.drop(['mpv', 'preco', 'pontos'], axis=1)
-y_train = train_database['preco']
-X_eval = eval_database.drop(['mpv', 'preco', 'pontos'], axis=1)
-y_eval = eval_database['preco']
-X_test = test_database.drop(['mpv', 'preco', 'pontos'], axis=1)
-y_test = test_database['preco']
+y_min = database['pontos'].min()
+y_max = database['pontos'].max()
+X_train, y_train = _split_pontuacao_data(train_database)
+X_eval, y_eval = _split_pontuacao_data(eval_database)
+X_test, y_test = _split_pontuacao_data(test_database)
 
-# Fit model
-PRECO_MODEL.fit(X_train, y_train)
-
-# Evaluate
-y_pred = (PRECO_MODEL.predict(X_eval) * (y_max - y_min) + y_min).round(1)
-y_eval = (y_eval * (y_max - y_min) + y_min).round(1)
-mse = mean_squared_error(y_eval, y_pred)
-r2 = r2_score(y_eval, y_pred)
-print(f"> PREÇO: MSE: {mse:.4f} R2: {r2:.4f}")
-
-# Save model
-joblib.dump(PRECO_MODEL, f"saved_models/preco__rodada_{RODADA}.pkl")
-
-# Predict pontos
-y_pred = PRECO_MODEL.predict(X_test)
-y_pred = (PRECO_MODEL.predict(X_test) * (y_max - y_min) + y_min).round(1)
-database.loc[database['rodada_id'] == RODADA, 'pontos'] = y_pred
-database.to_excel(f"../data/dados__rodada_{RODADA}.xlsx", index=False)
-
-# Predict preco
-# Split X and y
-X_train = train_database.drop(['mpv', 'pontos'], axis=1)
-y_train = train_database['pontos']
-X_eval = eval_database.drop(['mpv', 'pontos'], axis=1)
-y_eval = eval_database['pontos']
-X_test = test_database.drop(['mpv', 'pontos'], axis=1)
-y_test = test_database['pontos']
-
-# Fit model
+# Fit
 PONTOS_MODEL.fit(X_train, y_train)
 
 # Evaluate
@@ -133,5 +160,43 @@ mse = mean_squared_error(y_eval, y_pred)
 r2 = r2_score(y_eval, y_pred)
 print(f"> PONTOS: MSE: {mse:.4f} R2: {r2:.4f}")
 
-# Save model
-joblib.dump(PONTOS_MODEL, f"saved_models/pontos__rodada_{RODADA}.pkl")
+# Predict
+y_pred = PONTOS_MODEL.predict(X_test)
+y_pred = (PONTOS_MODEL.predict(X_test) * (y_max - y_min) + y_min).round(1)
+database.loc[database['rodada_id'] == RODADA, 'pontos'] = y_pred
+
+##########
+# Preco #
+# Process database
+(
+    train_database,
+    eval_database,
+    test_database
+) = database.pipe(process_preco_database)
+
+# Split X and y
+X_train, y_train = _split_preco_data(train_database)
+X_eval, y_eval = _split_preco_data(eval_database)
+X_test, y_test = _split_preco_data(test_database)
+
+# Fit
+PRECO_MODEL.fit(X_train, y_train)
+
+# Evaluate
+y_pred = (PRECO_MODEL.predict(X_eval) * (y_max - y_min) + y_min).round(1)
+y_eval = (y_eval * (y_max - y_min) + y_min).round(1)
+mse = mean_squared_error(y_eval, y_pred)
+r2 = r2_score(y_eval, y_pred)
+print(f"> PREÇO: MSE: {mse:.4f} R2: {r2:.4f}")
+
+# Predict
+y_pred = PRECO_MODEL.predict(X_test)
+y_pred = (PRECO_MODEL.predict(X_test) * (y_max - y_min) + y_min).round(1)
+database.loc[database['rodada_id'] == RODADA, 'preco'] = y_pred
+
+# Valorizacao
+database['valorizacao'] = database['preco'] - database['preco_lag1']
+
+# Save excel
+database.to_excel(f"../results/dados__rodada_{RODADA}.xlsx", index=False)
+

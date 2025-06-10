@@ -151,17 +151,13 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, atleta_status: str) -> pd.D
 
         # Expand preco
         if 'preco' in rodadas_df.columns:
-            preco_df = pd.json_normalize(rodadas_df['preco']).rename(
-                columns={'num': 'preco'}
-            )['preco']
-            rodadas_df['preco'] = preco_df
+            preco = pd.json_normalize(rodadas_df['preco']).get('open', np.nan)
+            rodadas_df['preco'] = preco
 
         # Expand pontos
         if 'pontos' in rodadas_df.columns:
-            pontos_df = pd.json_normalize(rodadas_df['pontos']).rename(
-                columns={'num': 'pontos'}
-            )['pontos']
-            rodadas_df['pontos'] = pontos_df
+            pontos = pd.json_normalize(rodadas_df['pontos']).get('num', np.nan)
+            rodadas_df['pontos'] = pontos
 
         rodadas_df = rodadas_df[
             [
@@ -198,12 +194,13 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, atleta_status: str) -> pd.D
         # Cria todas as colunas de lag de uma vez só para evitar fragmentação
         lag_dfs = []
         for col in metric_cols:
-            if col in ['mpv', 'preco']:  # A priori
+            if col in ['preco', 'mpv']:  # A priori
                 lag_cols = {}
                 for i in range(5):
                     lag_cols[f'{col}_lag{i + 1}'] = pontuacoes_df[
                         col].shift(i).fillna(0.0)
                 pontuacoes_df[col] = pontuacoes_df[col].shift(-1)
+
             else:  # A posteriori
                 lag_cols = {}
                 for i in range(1, 6):
@@ -226,7 +223,7 @@ gatomestre_url = "https://api.gatomestre.globo.com/api/v2/atletas/{atleta_id}"
 partidas_url = "https://api.cartola.globo.com/partidas/{rodada}"
 auth_header = {
     "Authorization":
-    "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg5NWIwYmIwLTI4ODMtNDE3MC1hMDY2LTZkMDIwZjkzNGRlMyIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiY2FydG9sYUBhcHBzLmdsb2JvaWQiXSwiYXpwIjoiY2FydG9sYUBhcHBzLmdsb2JvaWQiLCJlbWFpbCI6Imx1Y2FzLmJhcmJvc2EuMDg5OUBnbWFpbC5jb20iLCJleHAiOjE3NDk1NzQ0NjMsImZlZGVyYXRlZF9zaWQiOiIxYzhjMjRkZTMxYmQyMDM4NWYyYzhlNTk2OTU2Y2Q0Yzc3MTc4NzI0NTUzNzg0ZDUwNjU0OTU4NjcyZDRiMzIzMjM2NzI0ZjY3NzY1Nzc1MzI2NjRhNTczODUzNTQzODZhNTM1OTY3NGM2ZDM5MzU0YTMyNTM0NzZmNzY2YTczNDY3Mzc4Nzk2NTc5NjY3ODcxNTA3OTc5NDM2NTZkNTM3ODdhNTE2MTYzNTM2YjY5NzY0NDYyNTA2NTQ3N2E0NDRiNjk1NzM2Mzc2ZTQxM2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZnNfaWQiOiJxeHJFU3hNUGVJWGctSzIyNnJPZ3ZXdTJmSlc4U1Q4alNZZ0xtOTVKMlNHb3Zqc0ZzeHlleWZ4cVB5eUNlbVN4elFhY1NraXZEYlBlR3pES2lXNjduQT09IiwiZ2xiaWQiOiIxYzhjMjRkZTMxYmQyMDM4NWYyYzhlNTk2OTU2Y2Q0Yzc3MTc4NzI0NTUzNzg0ZDUwNjU0OTU4NjcyZDRiMzIzMjM2NzI0ZjY3NzY1Nzc1MzI2NjRhNTczODUzNTQzODZhNTM1OTY3NGM2ZDM5MzU0YTMyNTM0NzZmNzY2YTczNDY3Mzc4Nzk2NTc5NjY3ODcxNTA3OTc5NDM2NTZkNTM3ODdhNTE2MTYzNTM2YjY5NzY0NDYyNTA2NTQ3N2E0NDRiNjk1NzM2Mzc2ZTQxM2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZ2xvYm9faWQiOiIwMjBjZWI5Yy04ZGE5LTQwN2QtOGMzZi05MzFiNDUyYmNmMTMiLCJpYXQiOjE3NDk0OTE0MjcsImlzcyI6Imh0dHBzOi8vZ29pZGMuZ2xvYm8uY29tL2F1dGgvcmVhbG1zL2dsb2JvLmNvbSIsImp0aSI6IjY4NTJmM2Q4LTA0ZGQtNGE2ZC04NDg5LTQwYjY2NzEwYWU2MiIsInByZWZlcnJlZF91c2VybmFtZSI6Imx1Y2FzLmJhci4yMDE0LjkiLCJzY3AiOlsib3BlbmlkIiwicHJvZmlsZSJdLCJzZXNzaW9uX3N0YXRlIjoiZWI5YjNkMGItZTY1OC00NTdiLWExODAtZGU5OTdhMjIwYjlmIiwic2lkIjoiZWI5YjNkMGItZTY1OC00NTdiLWExODAtZGU5OTdhMjIwYjlmIiwic3ViIjoiMDIwY2ViOWMtOGRhOS00MDdkLThjM2YtOTMxYjQ1MmJjZjEzIiwidHlwIjoiQmVhcmVyIn0.dMkDIXMQiso1IkFGnkyZEisYrNAN0Us_gy0apRz93L_iKy56uBWhXNMaxiS36Fzz54MAAamucQhZaaYwYwNvZPuIrjN5qD4_mo9glJsC3IBeWA7d-V0WbbcnAt8p18lR9RiqxW9eZFk-tqd5eq_4xchJ-yPPIEPW8hshvgc13dYl_JkVtP1Nzo2JLLMVs78Nuq1uZOb2NEWuHUfcVGgOmwxjsnQGCl-CIMrv6Ecmcm0fuiP0OJ7HRfb2ZWRWjVwcEtqYRH3paOeacuX-FKzO5uni3lzItyG7c5Wh2Kqmmfn8kEt0NkZPHxpNWv_zUVTP9yTygrk3r-51wN7iXnf6Hg"
+    "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg5NWIwYmIwLTI4ODMtNDE3MC1hMDY2LTZkMDIwZjkzNGRlMyIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiY2FydG9sYUBhcHBzLmdsb2JvaWQiXSwiYXpwIjoiY2FydG9sYUBhcHBzLmdsb2JvaWQiLCJlbWFpbCI6Imx1Y2FzLmJhcmJvc2EuMDg5OUBnbWFpbC5jb20iLCJleHAiOjE3NDk1ODA5NjcsImZlZGVyYXRlZF9zaWQiOiIxYzhjMjRkZTMxYmQyMDM4NWYyYzhlNTk2OTU2Y2Q0Yzc3MTc4NzI0NTUzNzg0ZDUwNjU0OTU4NjcyZDRiMzIzMjM2NzI0ZjY3NzY1Nzc1MzI2NjRhNTczODUzNTQzODZhNTM1OTY3NGM2ZDM5MzU0YTMyNTM0NzZmNzY2YTczNDY3Mzc4Nzk2NTc5NjY3ODcxNTA3OTc5NDM2NTZkNTM3ODdhNTE2MTYzNTM2YjY5NzY0NDYyNTA2NTQ3N2E0NDRiNjk1NzM2Mzc2ZTQxM2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZnNfaWQiOiJxeHJFU3hNUGVJWGctSzIyNnJPZ3ZXdTJmSlc4U1Q4alNZZ0xtOTVKMlNHb3Zqc0ZzeHlleWZ4cVB5eUNlbVN4elFhY1NraXZEYlBlR3pES2lXNjduQT09IiwiZ2xiaWQiOiIxYzhjMjRkZTMxYmQyMDM4NWYyYzhlNTk2OTU2Y2Q0Yzc3MTc4NzI0NTUzNzg0ZDUwNjU0OTU4NjcyZDRiMzIzMjM2NzI0ZjY3NzY1Nzc1MzI2NjRhNTczODUzNTQzODZhNTM1OTY3NGM2ZDM5MzU0YTMyNTM0NzZmNzY2YTczNDY3Mzc4Nzk2NTc5NjY3ODcxNTA3OTc5NDM2NTZkNTM3ODdhNTE2MTYzNTM2YjY5NzY0NDYyNTA2NTQ3N2E0NDRiNjk1NzM2Mzc2ZTQxM2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZ2xvYm9faWQiOiIwMjBjZWI5Yy04ZGE5LTQwN2QtOGMzZi05MzFiNDUyYmNmMTMiLCJpYXQiOjE3NDk1NzczNjcsImlzcyI6Imh0dHBzOi8vZ29pZGMuZ2xvYm8uY29tL2F1dGgvcmVhbG1zL2dsb2JvLmNvbSIsImp0aSI6IjkwOGY5NGRhLWJmYTQtNDE4Zi1iMzhkLTI3OTNmNmZiZTY0NCIsInByZWZlcnJlZF91c2VybmFtZSI6Imx1Y2FzLmJhci4yMDE0LjkiLCJzY3AiOlsib3BlbmlkIiwicHJvZmlsZSJdLCJzZXNzaW9uX3N0YXRlIjoiZWI5YjNkMGItZTY1OC00NTdiLWExODAtZGU5OTdhMjIwYjlmIiwic2lkIjoiZWI5YjNkMGItZTY1OC00NTdiLWExODAtZGU5OTdhMjIwYjlmIiwic3ViIjoiMDIwY2ViOWMtOGRhOS00MDdkLThjM2YtOTMxYjQ1MmJjZjEzIiwidHlwIjoiQmVhcmVyIn0.dm9gxAesbUkWsaDYh10WgXdM6aOkBaGk3g73BeLIGO1QDrM_P-Gm1C4P8BZrrWXzNYKkm9xGlbMWwAX5wSwZUMCN3qBNBRTbY0jAW2DShgjDjp1ydiCaDwdtfMYwrpqzcU4xH87ZHu8oG4HXkDqhfmdUo4kB2424Ff69X52etGoUKyiJbPWdtzMPd6wcR5V-EkOx0vnOodYPFfYnLTEqW_H06RPQcAGcMpLY-XBpl2EMj5jIry-MpFB6B7fCnurwr-ZhBDWp7PcqFgsx3a89GI9PP939FerEj-fW4hEbqN_uPzGl2uoILwsZgLN-cYWQ3K7Z-dffL9R0sBn_N7pZag"
 }
 
 # Atletas description

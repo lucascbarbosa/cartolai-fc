@@ -1,8 +1,14 @@
+"""Script for lineup optimization."""
 import pandas as pd
 from pulp import LpMaximize, LpProblem, LpVariable, lpSum, LpBinary
 
 
-def optimize_lineup(database: pd.DataFrame, posicao_count: dict, cartoletas: float):
+def optimize_lineup(
+    database: pd.DataFrame,
+    posicao_count: dict,
+    cartoletas: float,
+    output_col: str
+):
     """Otimiza titulares e depois escolhe reservas mais baratos por posição."""
     opt_database = database.set_index('atleta_id')
 
@@ -14,9 +20,9 @@ def optimize_lineup(database: pd.DataFrame, posicao_count: dict, cartoletas: flo
         for atleta_id in opt_database.index
     }
 
-    # Objetivo: maximizar pontos
+    # Objetivo: maximizar saida
     prob += lpSum(
-        var_dict[i] * opt_database.loc[i, "pontos"]
+        var_dict[i] * opt_database.loc[i, output_col]
         for i in opt_database.index
     )
 
