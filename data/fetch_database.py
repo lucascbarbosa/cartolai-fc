@@ -150,7 +150,7 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, atleta_status: str) -> pd.D
         rodadas_df = rodadas_df[
             [
                 'rodada_id', 'mpv', 'status', 'entrou_em_campo',
-                'pontos', 'preco', 'preco_var'
+                'pontos', 'pontos_var', 'preco', 'preco_var',
             ] +
             list(rodadas_df.filter(like='scout_', axis=1).columns)
         ]
@@ -160,52 +160,37 @@ def fetch__pontuacao_atletas__rodada(atleta_id: int, atleta_status: str) -> pd.D
         atual_df = pd.DataFrame([scouts])
         atual_df.columns = ['scout_' + c for c in atual_df.columns]
         atual_df['preco'] = gatomestre_data['preco']
-        atual_df['preco_var'] = (
-            gatomestre_data['preco'] - rodadas_df.iloc[-1, 5])
         atual_df['mpv'] = gatomestre_data['mpv']
         atual_df['rodada_id'] = len(rodadas_df) + 1
         atual_df['status'] = atleta_status
         atual_df['pontos'] = np.nan
-        atual_df['pontos_var'] = np.nan
         atual_df['entrou_em_campo'] = None
-
-        # Concatenate
         pontuacoes_df = pd.concat([rodadas_df, atual_df])
         pontuacoes_df['atleta_id'] = atleta_id
 
-        # Calcula variações de preco e pontuacao
+        # Seleciona colunas de scouts, mpv, preco, pontos
+        scout_cols = [
+            c for c in pontuacoes_df.columns if c.startswith('scout_')
+        ]
+        metric_cols = scout_cols + ['mpv', 'preco', 'pontos']
+
+        # Ordena por rodada
         pontuacoes_df = pontuacoes_df.sort_values(
-            by='rodada_id').reset_index(drop=True)
-        pontuacoes_df['pontos_var'] = pontuacoes_df['pontos']\
-            .diff().fillna(0.0)
+            'rodada_id').reset_index(drop=True)
 
-        # Cast colunas
-        pontuacoes_df[
-            list(pontuacoes_df.filter(like='scout_', axis=1).columns) +
-            ['preco_var', 'preco', 'pontos_var', 'pontos',
-            'entrou_em_campo', 'mpv']
-        ] = pontuacoes_df[
-            list(pontuacoes_df.filter(like='scout_', axis=1).columns) +
-            ['preco_var', 'preco', 'pontos_var', 'pontos',
-            'entrou_em_campo', 'mpv']
-        ].astype(float)
+        # Para cada coluna, cria as 5 últimas janelas
+        # Cria todas as colunas de lag de uma vez só para evitar fragmentação
+        lag_dfs = []
+        for col in metric_cols:
+            lag_cols = {}
+            for i in range(1, 6):
+                lag_cols[f'{col}_lag{i}'] = pontuacoes_df[col].shift(i)
+            lag_dfs.append(pd.DataFrame(lag_cols))
+        lags_df = pd.concat(lag_dfs, axis=1)
+        pontuacoes_df = pd.concat([pontuacoes_df, lags_df], axis=1)
+        pontuacoes_df = pontuacoes_df.drop(scout_cols, axis=1)
 
-        # Crie médias cumulativas
-        jogos_cumsum = pontuacoes_df['entrou_em_campo'].shift(1).cumsum()
-        scout_cols = pontuacoes_df.filter(like='scout_', axis=1).columns
-        scout_cumsum = pontuacoes_df[scout_cols].shift(1).cumsum()
-
-        pontos_cumsum = pontuacoes_df['pontos'].shift(1).cumsum()
-        pontuacoes_df.loc[1:, scout_cols] = scout_cumsum.div(
-            jogos_cumsum, axis=0).fillna(0.0)
-        pontuacoes_df['pontos_mean'] = (
-            pontos_cumsum / jogos_cumsum.replace(0, np.nan)
-        ).fillna(0.0)
-
-        preco_cumsum = pontuacoes_df['preco'].shift(1).cumsum()
-        pontuacoes_df['preco_mean'] = (
-            preco_cumsum / jogos_cumsum.replace(0, np.nan)
-        ).fillna(0.0)
+        # Calcula
         return pontuacoes_df
 
     except Exception as e:
@@ -217,7 +202,7 @@ gatomestre_url = "https://api.gatomestre.globo.com/api/v2/atletas/{atleta_id}"
 partidas_url = "https://api.cartola.globo.com/partidas/{rodada}"
 auth_header = {
     "Authorization":
-    "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg5NWIwYmIwLTI4ODMtNDE3MC1hMDY2LTZkMDIwZjkzNGRlMyIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiY2FydG9sYUBhcHBzLmdsb2JvaWQiXSwiYXpwIjoiY2FydG9sYUBhcHBzLmdsb2JvaWQiLCJlbWFpbCI6Imx1Y2FzLmJhcmJvc2EuMDg5OUBnbWFpbC5jb20iLCJleHAiOjE3NDk0OTUwMjgsImZlZGVyYXRlZF9zaWQiOiIxYzhjMjRkZTMxYmQyMDM4NWYyYzhlNTk2OTU2Y2Q0Yzc3MTc4NzI0NTUzNzg0ZDUwNjU0OTU4NjcyZDRiMzIzMjM2NzI0ZjY3NzY1Nzc1MzI2NjRhNTczODUzNTQzODZhNTM1OTY3NGM2ZDM5MzU0YTMyNTM0NzZmNzY2YTczNDY3Mzc4Nzk2NTc5NjY3ODcxNTA3OTc5NDM2NTZkNTM3ODdhNTE2MTYzNTM2YjY5NzY0NDYyNTA2NTQ3N2E0NDRiNjk1NzM2Mzc2ZTQxM2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZnNfaWQiOiJxeHJFU3hNUGVJWGctSzIyNnJPZ3ZXdTJmSlc4U1Q4alNZZ0xtOTVKMlNHb3Zqc0ZzeHlleWZ4cVB5eUNlbVN4elFhY1NraXZEYlBlR3pES2lXNjduQT09IiwiZ2xiaWQiOiIxYzhjMjRkZTMxYmQyMDM4NWYyYzhlNTk2OTU2Y2Q0Yzc3MTc4NzI0NTUzNzg0ZDUwNjU0OTU4NjcyZDRiMzIzMjM2NzI0ZjY3NzY1Nzc1MzI2NjRhNTczODUzNTQzODZhNTM1OTY3NGM2ZDM5MzU0YTMyNTM0NzZmNzY2YTczNDY3Mzc4Nzk2NTc5NjY3ODcxNTA3OTc5NDM2NTZkNTM3ODdhNTE2MTYzNTM2YjY5NzY0NDYyNTA2NTQ3N2E0NDRiNjk1NzM2Mzc2ZTQxM2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZ2xvYm9faWQiOiIwMjBjZWI5Yy04ZGE5LTQwN2QtOGMzZi05MzFiNDUyYmNmMTMiLCJpYXQiOjE3NDk0OTE0MjcsImlzcyI6Imh0dHBzOi8vZ29pZGMuZ2xvYm8uY29tL2F1dGgvcmVhbG1zL2dsb2JvLmNvbSIsImp0aSI6IjJiNzc3Mzg2LTE1YzktNGE1NC1hNzViLTRkZTA2YzMwNzEzZSIsInByZWZlcnJlZF91c2VybmFtZSI6Imx1Y2FzLmJhci4yMDE0LjkiLCJzY3AiOlsib3BlbmlkIiwicHJvZmlsZSJdLCJzZXNzaW9uX3N0YXRlIjoiZWI5YjNkMGItZTY1OC00NTdiLWExODAtZGU5OTdhMjIwYjlmIiwic2lkIjoiZWI5YjNkMGItZTY1OC00NTdiLWExODAtZGU5OTdhMjIwYjlmIiwic3ViIjoiMDIwY2ViOWMtOGRhOS00MDdkLThjM2YtOTMxYjQ1MmJjZjEzIiwidHlwIjoiQmVhcmVyIn0.DT9Oww3itPacKgcJX1d_NWmNonO88L9LMzK4imEIcqkc3jrhzp5l2l3RNlGtXOLwC-G2eannHLZQnegt8tX-8F0F7Bh1uf52mS_sExVIdeKTU0b_Z8hLM5DRwO3KDobBLjJ-cdh-Nm9Cev4ydJ2yxmXls_oHzwM53RUd4IHlxZ-8i9wCckwpGQ6eoJLE9xwUVHOLg5L1oHVjK_Fxaw5O1nX9-4hWVqSXHQNRS9HncHmJ0hSM6MONNK1MmYtm29d1AHptoxwWCtpzOYpHZviQftRZpQ0XLlDImJbk_pDWgUQLSluTs8OZSPWwNX4rabS6AkpEq2wkM9PS107d9gERXA"
+    "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg5NWIwYmIwLTI4ODMtNDE3MC1hMDY2LTZkMDIwZjkzNGRlMyIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiY2FydG9sYUBhcHBzLmdsb2JvaWQiXSwiYXpwIjoiY2FydG9sYUBhcHBzLmdsb2JvaWQiLCJlbWFpbCI6Imx1Y2FzLmJhcmJvc2EuMDg5OUBnbWFpbC5jb20iLCJleHAiOjE3NDk1NTc3MDQsImZlZGVyYXRlZF9zaWQiOiIxYzhjMjRkZTMxYmQyMDM4NWYyYzhlNTk2OTU2Y2Q0Yzc3MTc4NzI0NTUzNzg0ZDUwNjU0OTU4NjcyZDRiMzIzMjM2NzI0ZjY3NzY1Nzc1MzI2NjRhNTczODUzNTQzODZhNTM1OTY3NGM2ZDM5MzU0YTMyNTM0NzZmNzY2YTczNDY3Mzc4Nzk2NTc5NjY3ODcxNTA3OTc5NDM2NTZkNTM3ODdhNTE2MTYzNTM2YjY5NzY0NDYyNTA2NTQ3N2E0NDRiNjk1NzM2Mzc2ZTQxM2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZnNfaWQiOiJxeHJFU3hNUGVJWGctSzIyNnJPZ3ZXdTJmSlc4U1Q4alNZZ0xtOTVKMlNHb3Zqc0ZzeHlleWZ4cVB5eUNlbVN4elFhY1NraXZEYlBlR3pES2lXNjduQT09IiwiZ2xiaWQiOiIxYzhjMjRkZTMxYmQyMDM4NWYyYzhlNTk2OTU2Y2Q0Yzc3MTc4NzI0NTUzNzg0ZDUwNjU0OTU4NjcyZDRiMzIzMjM2NzI0ZjY3NzY1Nzc1MzI2NjRhNTczODUzNTQzODZhNTM1OTY3NGM2ZDM5MzU0YTMyNTM0NzZmNzY2YTczNDY3Mzc4Nzk2NTc5NjY3ODcxNTA3OTc5NDM2NTZkNTM3ODdhNTE2MTYzNTM2YjY5NzY0NDYyNTA2NTQ3N2E0NDRiNjk1NzM2Mzc2ZTQxM2QzZDNhMzAzYTZjNzU2MzYxNzMyZTYyNjE3MjJlMzIzMDMxMzQyZTM5IiwiZ2xvYm9faWQiOiIwMjBjZWI5Yy04ZGE5LTQwN2QtOGMzZi05MzFiNDUyYmNmMTMiLCJpYXQiOjE3NDk0OTE0MjcsImlzcyI6Imh0dHBzOi8vZ29pZGMuZ2xvYm8uY29tL2F1dGgvcmVhbG1zL2dsb2JvLmNvbSIsImp0aSI6IjlhNzNlNGRkLWMzOGUtNDc3MS04MGNjLWU4YTY5Y2I5YjJjZSIsInByZWZlcnJlZF91c2VybmFtZSI6Imx1Y2FzLmJhci4yMDE0LjkiLCJzY3AiOlsib3BlbmlkIiwicHJvZmlsZSJdLCJzZXNzaW9uX3N0YXRlIjoiZWI5YjNkMGItZTY1OC00NTdiLWExODAtZGU5OTdhMjIwYjlmIiwic2lkIjoiZWI5YjNkMGItZTY1OC00NTdiLWExODAtZGU5OTdhMjIwYjlmIiwic3ViIjoiMDIwY2ViOWMtOGRhOS00MDdkLThjM2YtOTMxYjQ1MmJjZjEzIiwidHlwIjoiQmVhcmVyIn0.B0o09Hl7VN4LentIitEfqB_bQM4j0ValcW7upArPb_knzQiB8Pw21UyFpKJXTNRK_0DYI6yKgYd0tyyLMixiKriFlixNQ7CQuEiwJW2-QTfiSs_TXo8A-IASoDsQZdWPIqgteFhk9daW_fJ7HENlHiAo5_b8d8p7_zX8JpjpZoulE2t-Wff3RFxe_ws2Z7QjW5TG2rgPAO6VTKfnbaBCijT3JdbUA9izXgsnLjvUdP6XfDSEJN5c6zAgS83HkAb26RTrHMOQ7yHszrfdaNo2gwCFrZoMgRwDllvduvefgc5hzMS_dB8E4sE7FS3WBnpPotrP8PjRE4GhP52x2FdiOw"
 }
 
 # Atletas description
