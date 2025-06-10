@@ -75,13 +75,6 @@ def process_database(database: pd.DataFrame):
     return train_database, eval_database, test_database
 
 
-def split_input_output(database: pd.DataFrame):
-    """Split in input and output."""
-    X = database.drop(['pontos'], axis=1)
-    y = database['pontos']
-    return X, y
-
-
 # Read dataframe
 database = pd.read_excel(f"../data/dados__rodada_{RODADA}.xlsx")
 y_min = database['pontos'].min()
@@ -95,9 +88,40 @@ y_max = database['pontos'].max()
 ) = database.pipe(process_database)
 
 # Split X and y
-X_train, y_train = train_database.pipe(split_input_output)
-X_eval, y_eval = eval_database.pipe(split_input_output)
-X_test, y_test = test_database.pipe(split_input_output)
+X_train = train_database.drop(['mpv', 'preco', 'pontos'], axis=1)
+y_train = train_database['preco']
+X_eval = eval_database.drop(['mpv', 'preco', 'pontos'], axis=1)
+y_eval = eval_database['preco']
+X_test = test_database.drop(['mpv', 'preco', 'pontos'], axis=1)
+y_test = test_database['preco']
+
+# Fit model
+PRECO_MODEL.fit(X_train, y_train)
+
+# Evaluate
+y_pred = (PRECO_MODEL.predict(X_eval) * (y_max - y_min) + y_min).round(1)
+y_eval = (y_eval * (y_max - y_min) + y_min).round(1)
+mse = mean_squared_error(y_eval, y_pred)
+r2 = r2_score(y_eval, y_pred)
+print(f"> PREÇO: MSE: {mse:.4f} R2: {r2:.4f}")
+
+# Save model
+joblib.dump(PRECO_MODEL, f"saved_models/preco__rodada_{RODADA}.pkl")
+
+# Predict pontos
+y_pred = PRECO_MODEL.predict(X_test)
+y_pred = (PRECO_MODEL.predict(X_test) * (y_max - y_min) + y_min).round(1)
+database.loc[database['rodada_id'] == RODADA, 'pontos'] = y_pred
+database.to_excel(f"../data/dados__rodada_{RODADA}.xlsx", index=False)
+
+# Predict preco
+# Split X and y
+X_train = train_database.drop(['mpv', 'pontos'], axis=1)
+y_train = train_database['pontos']
+X_eval = eval_database.drop(['mpv', 'pontos'], axis=1)
+y_eval = eval_database['pontos']
+X_test = test_database.drop(['mpv', 'pontos'], axis=1)
+y_test = test_database['pontos']
 
 # Fit model
 PONTOS_MODEL.fit(X_train, y_train)
@@ -107,13 +131,7 @@ y_pred = (PONTOS_MODEL.predict(X_eval) * (y_max - y_min) + y_min).round(1)
 y_eval = (y_eval * (y_max - y_min) + y_min).round(1)
 mse = mean_squared_error(y_eval, y_pred)
 r2 = r2_score(y_eval, y_pred)
-print(f"MSE: {mse:.4f} R2: {r2:.4f}")
+print(f"> PONTOS: MSE: {mse:.4f} R2: {r2:.4f}")
 
 # Save model
 joblib.dump(PONTOS_MODEL, f"saved_models/pontos__rodada_{RODADA}.pkl")
-
-# Predict pontos
-y_pred = PONTOS_MODEL.predict(X_test)
-y_pred = (PONTOS_MODEL.predict(X_test) * (y_max - y_min) + y_min).round(1)
-database.loc[database['rodada_id'] == RODADA, 'pontos'] = y_pred
-database.to_excel(f"../data/dados__rodada_{RODADA}.xlsx", index=False)
