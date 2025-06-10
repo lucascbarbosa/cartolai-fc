@@ -24,6 +24,8 @@ args = parser.parse_args()
 RODADA = args.rodada
 ESQUEMA = args.esquema
 CARTOLETAS = args.cartoletas
+MODEL_NAME = 'LinearRegression'
+OUTPUT_COL = 'preco'
 
 
 #############
@@ -61,7 +63,8 @@ database = pd.read_excel(f"../data/dados__rodada_{RODADA}.xlsx")
 
 # Load model and scaler
 model = joblib.load(f"saved_models/rodada_{RODADA}.pkl")
-scaler = joblib.load(f"saved_scalers/rodada_{RODADA}.pkl")
+scaler = joblib.load(
+    f"saved_scalers/rodada_{RODADA}__{OUTPUT_COL}__model_{MODEL_NAME}.pkl")
 
 # Filter last round
 database = database[
@@ -76,19 +79,6 @@ database = database.drop(
 
 # Encode posicao
 database = pd.get_dummies(database, columns=['posicao'])
-
-# Order columns
-database = database[[
-    'atleta_id', 'apelido', 'clube', 'mpv', 'preco', 'preco_var', 'scout_FS', 'scout_DS',
-    'scout_G', 'scout_A', 'scout_FT', 'scout_FD', 'scout_FF', 'scout_SG',
-    'scout_DE', 'scout_DP', 'scout_PS', 'scout_PP', 'scout_PC', 'scout_I',
-    'scout_GC', 'scout_GS', 'scout_FC', 'scout_CA', 'scout_CV',
-    'pontos_var', 'pontos_mean', 'clube_aproveitamento',
-    'clube_adversario_aproveitamento', 'clube_posicao',
-    'clube_adversario_posicao', 'is_casa', 'posicao_Atacante',
-    'posicao_Goleiro', 'posicao_Lateral', 'posicao_Meia',
-    'posicao_Zagueiro', 'pontos'
-]]
 
 # Predict pontos
 scaled_database = scaler.transform(
